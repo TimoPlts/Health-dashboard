@@ -32,6 +32,15 @@ function startRun(db: DB, provider: string, trigger: string) {
   return db.insert(syncRuns).values({ provider, trigger, startedAt: Date.now(), status: "running" }).returning({ id: syncRuns.id }).get().id;
 }
 
+/**
+ * Runs still marked "running" when a new sync holds the lock were cut off (server stopped mid-sync).
+ * Mark them so the history is honest; their per-chunk progress is already saved in sync_state.
+ */
+export function closeInterruptedRuns(db: DB) {
+  return db.update(syncRuns).set({ finishedAt: Date.now(), status: "interrupted", error: "Process stopped before the sync finished" })
+    .where(eq(syncRuns.status, "running")).run().changes;
+}
+
 function finishRun(db: DB, id: number, results: StreamResult[], fatal?: string) {
   const failed = results.filter((r) => !r.ok).length;
   const status = fatal || (failed > 0 && failed === results.length) ? "failed" : failed > 0 ? "partial" : "success";
@@ -120,13 +129,15 @@ export async function syncGoogle(
             r.rows += s.hr + s.obs + s.daily; r.skipped += p.batch.skipped;
           }
         }
-        setState(db, "google", id, {
-          syncedThroughMs: Math.min(we, now),
-          backfilledFromMs: Math.min(state?.backfilledFromMs ?? ws, ws),
-        });
+        // Never move the high-water mark backwards (a backfill re-fetches old chunks first).
+        setState(db, "google", id, { syncedThroughMs: Math.max(state?.syncedThroughMs ?? 0, Math.min(we, now)) });
       }
       const prev = getState(db, "google", id);
-      setState(db, "google", id, { lastSuccessAt: Date.now(), lastError: null, rowsTotal: (prev?.rowsTotal ?? 0) + r.rows });
+      // History is only recorded as fetched once every chunk from `from` succeeded (an interrupted backfill retries).
+      setState(db, "google", id, {
+        lastSuccessAt: Date.now(), lastError: null, rowsTotal: (prev?.rowsTotal ?? 0) + r.rows,
+        backfilledFromMs: Math.min(state?.backfilledFromMs ?? from, from),
+      });
       log.info(`google ${id}: ${r.rows} rows, ${r.pages} pages, ${r.skipped} skipped`);
     } catch (e) {
       r.ok = false;

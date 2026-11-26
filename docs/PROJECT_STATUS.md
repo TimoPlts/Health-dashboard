@@ -18,7 +18,7 @@ _Last updated: 2026-11-26. Phases 1–5 done: verified Google data, analytics en
 | Workouts from Google sessions | **tested against real data** (structure) | 8 sessions → 6 workouts. Fitbit + Hevy (Apple Health) duplicates merged. One < 60 s session flagged |
 | Every page read model on real data | verified (no errors; 4–25 ms) | `npm run check:analytics` (no values printed) |
 | UI | E2E + axe on fictional demo data (iPhone dark/light, desktop) | design reviewed through demo-data screenshots only |
-| Automatic sync | implemented | starts with the server, default every 30 min. Lock file prevents overlap with CLI/Task Scheduler |
+| Automatic sync | **verified on real data** | starts with the server, default every 30 min. Incremental run ≈ 1 min. Lock file prevents overlap; dead-owner locks are released; cut-off runs are marked `interrupted` |
 | Hevy direct import | implemented, optional, **not used** (needs Hevy Pro) | nothing depends on it |
 | Fitbit HR inside Hevy (BLE) | unverified | manual test; no code involved |
 
@@ -29,6 +29,7 @@ _Last updated: 2026-11-26. Phases 1–5 done: verified Google data, analytics en
 - Reconciled activity rows have no device provenance; their per-day totals equal Google's exactly.
 - Swim-length intervals detected by the Air: the owner should confirm whether they are real.
 - Heart-rate load under-represents strength training (true of any HR method).
+- Google occasionally times out on large 90-day chunks (seen once on `daily-heart-rate-zones` during a full re-fetch). That stream is marked failed for the run and retried on the next one; incremental syncs request small windows.
 - `.next/` and `node_modules/` still sync to OneDrive (artefacts only).
 
 ## Commands

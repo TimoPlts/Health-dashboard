@@ -5,7 +5,7 @@ import { env, isDemoMode } from "../env";
 import { getConnection, getGoogleAccessToken, getHevyApiKey } from "../connections";
 import { GoogleHealthClient } from "../providers/google/client";
 import { HevyClient } from "../providers/hevy/client";
-import { syncGoogle, syncHevy, describeError, type SyncLogger } from "./engine";
+import { closeInterruptedRuns, syncGoogle, syncHevy, describeError, type SyncLogger } from "./engine";
 import { computeDerived, datesNeedingDerive } from "../analytics/derive";
 import { setSetting } from "../settings";
 import { offsetMs } from "@/lib/time";
@@ -23,9 +23,20 @@ export function syncStartedAt() {
 
 const LOCK_STALE_MS = 45 * 60_000;
 
+/** True unless the lock names a process that no longer exists (server killed mid-sync). */
+export function lockOwnerAlive(content: string, isAlive = pidAlive): boolean {
+  try {
+    const pid = (JSON.parse(content) as { pid?: unknown }).pid;
+    return typeof pid !== "number" || pid === process.pid || isAlive(pid);
+  } catch { return true; } // unreadable: fall back to the age rule
+}
+function pidAlive(pid: number) {
+  try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === "EPERM"; }
+}
+
 /**
  * Cross-process lock (web server + CLI/Task Scheduler) via an exclusive lock file in the runtime folder.
- * A lock older than 45 min is treated as stale (crashed process) and replaced.
+ * A lock older than 45 min, or whose owner process is gone, is treated as stale and replaced.
  */
 function acquireLock(): (() => void) | null {
   const file = path.join(isDemoMode() ? "./data" : ensureSafeDir(runtimePaths().home), "sync.lock");
@@ -38,8 +49,7 @@ function acquireLock(): (() => void) | null {
     } catch {
       try {
         const age = Date.now() - statSync(file).mtimeMs;
-        if (age > LOCK_STALE_MS) { unlinkSync(file); continue; }
-        void readFileSync(file);
+        if (age > LOCK_STALE_MS || !lockOwnerAlive(readFileSync(file, "utf8"))) { unlinkSync(file); continue; }
       } catch { continue; }
       return null;
     }
@@ -59,6 +69,7 @@ export function syncAll(db: DB, trigger: string, log?: SyncLogger) {
     const release = acquireLock();
     if (!release) { log?.warn("Another Baseline sync is running (lock file present) — skipped."); return { skipped: true }; }
     try {
+      closeInterruptedRuns(db);
       const tz = env().HOME_TIME_ZONE;
       const google = getConnection(db, "google");
       if (google?.status === "connected") {

@@ -5,7 +5,8 @@ import { openDatabase, type DB } from "@/server/db/client";
 import * as t from "@/server/db/schema";
 import { GoogleHealthClient } from "@/server/providers/google/client";
 import { HevyClient } from "@/server/providers/hevy/client";
-import { syncGoogle, syncHevy } from "@/server/sync/engine";
+import { closeInterruptedRuns, syncGoogle, syncHevy } from "@/server/sync/engine";
+import { lockOwnerAlive } from "@/server/sync/run";
 import { readRawPage } from "@/server/store";
 import { exchangeCode, refreshAccessToken, OAuthError } from "@/server/providers/google/oauth";
 import { hrPoint, sleepPoint, stepsPoint } from "../fixtures/google";
@@ -148,6 +149,20 @@ describe("Google sync", () => {
     expect(db.select().from(t.exerciseSessions).all()).toHaveLength(0);
   });
 
+  it("a small sync, then a full backfill, then an incremental sync: history is kept and not re-fetched", async () => {
+    const f = googleFetch({});
+    const client = new GoogleHealthClient(async () => "tok", { fetchImpl: f, sleep: async () => {} }, undefined, 0);
+    const opts = { now: NOW, streams: ["steps"] };
+    await syncGoogle(db, client, { ...opts, backfillDays: 2 });
+    await syncGoogle(db, client, { ...opts, backfillDays: 60 });
+    const st = db.select().from(t.syncState).where(eq(t.syncState.stream, "steps")).get()!;
+    expect(st.backfilledFromMs).toBe(Date.UTC(2026, 2, 3) - 60 * 86_400_000);
+    expect(st.syncedThroughMs).toBe(NOW);
+    f.mockClear();
+    await syncGoogle(db, client, { ...opts, backfillDays: 60 });
+    expect(f.mock.calls.length).toBeLessThanOrEqual(2); // lookback only (chunks of 3 days)
+  });
+
   it("refreshes once on 401 then succeeds", async () => {
     let calls = 0;
     const f = vi.fn(async () => (calls++ === 0 ? json({}, 401) : json({ dataPoints: [] })));
@@ -217,5 +232,22 @@ describe("Hevy sync", () => {
     expect(db.select().from(t.hevySets).where(eq(t.hevySets.workoutId, "w1")).all()).toHaveLength(3);
     expect(db.select().from(t.hevyWorkouts).where(eq(t.hevyWorkouts.id, "w2")).get()!.deletedAt).toBe("2026-03-03T10:00:00Z");
     expect(db.select().from(t.hevyWorkouts).all()).toHaveLength(2);
+  });
+});
+
+describe("sync run bookkeeping", () => {
+  it("marks runs left 'running' by a stopped process as interrupted", () => {
+    db.insert(t.syncRuns).values([
+      { provider: "google", trigger: "scheduled", startedAt: NOW - 60_000, status: "running" },
+      { provider: "google", trigger: "manual", startedAt: NOW - 120_000, finishedAt: NOW - 90_000, status: "success" },
+    ]).run();
+    expect(closeInterruptedRuns(db)).toBe(1);
+    expect(db.select().from(t.syncRuns).all().map((r) => r.status).sort()).toEqual(["interrupted", "success"]);
+  });
+  it("a lock file whose owner process is gone is stale; a live or unknown owner is respected", () => {
+    expect(lockOwnerAlive(JSON.stringify({ pid: 999_999, at: NOW }), () => false)).toBe(false);
+    expect(lockOwnerAlive(JSON.stringify({ pid: 999_999, at: NOW }), () => true)).toBe(true);
+    expect(lockOwnerAlive(JSON.stringify({ pid: process.pid, at: NOW }), () => false)).toBe(true);
+    expect(lockOwnerAlive("not json", () => false)).toBe(true);
   });
 });

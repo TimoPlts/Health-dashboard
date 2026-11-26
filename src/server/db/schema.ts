@@ -244,7 +244,7 @@ export const syncRuns = sqliteTable("sync_runs", {
   trigger: text("trigger").notNull(), // manual | scheduled | cli
   startedAt: integer("started_at").notNull(),
   finishedAt: integer("finished_at"),
-  status: text("status", { enum: ["running", "success", "partial", "failed"] }).notNull(),
+  status: text("status", { enum: ["running", "success", "partial", "failed", "interrupted"] }).notNull(),
   stats: text("stats", { mode: "json" }).$type<Record<string, unknown>>(),
   error: text("error"),
 });

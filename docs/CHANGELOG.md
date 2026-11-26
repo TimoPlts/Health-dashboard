@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 — 2026-11-26 (Sync fixes)
+### Fixed
+- Sync state no longer forgets the backfill. Every later sync used to re-fetch the full year (8–15 min); an incremental sync now takes under a minute with about one page per stream.
+- The sync high-water mark (`syncedThrough`) never moves backwards while old chunks are re-fetched.
+- A lock file left by a stopped server is released immediately when its process is gone, instead of blocking syncs for 45 minutes.
+- Runs cut off by a server stop are recorded as `interrupted`, not left as `running`.
+
 ## 0.4.0 — 2026-11-26 (Analytics, redesign, workouts, automatic sync)
 ### Added
 - Analytics engine:
