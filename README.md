@@ -1,8 +1,8 @@
 # Baseline
 
-A private, single-user health & training app that combines **Fitbit Air** data (Google Health API) with **Hevy** strength workouts in an iPhone-first, installable web app. No AI, ads, social or subscriptions. All personal data stays on your machine.
+A private, single-user health & training app that shows **Fitbit Air** data from the Google Health API in an iPhone-first, installable web app, with documented recovery, sleep and training-load metrics. No AI, ads, social or subscriptions. All personal data stays on your machine.
 
-> Status: Phase 1 — real-data integration. See [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md).
+> Current state, problems, decisions and next actions: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md).
 
 ## Run it (Windows)
 ```powershell
@@ -24,4 +24,4 @@ UI preview with fictional data: `npm run db:seed-demo`, then `$env:DEMO_MODE=1; 
 | `npm run backup` | consistent DB backup into the runtime folder |
 
 ## Docs
-[Product](docs/PRODUCT_SPEC.md) · [Architecture](docs/ARCHITECTURE.md) · [API research](docs/API_RESEARCH.md) · [Metrics](docs/METRIC_INVENTORY.md) · [Calculations](docs/CALCULATIONS.md) · [Data model](docs/DATA_MODEL.md) · [Design system](docs/DESIGN_SYSTEM.md) · [Security](docs/SECURITY.md) · [Testing](docs/TESTING.md) · [Roadmap](docs/ROADMAP.md) · [Status](docs/PROJECT_STATUS.md) · [ADRs](docs/adr/)
+[Product](docs/PRODUCT_SPEC.md) · [Architecture](docs/ARCHITECTURE.md) · [API research](docs/API_RESEARCH.md) · [Metrics](docs/METRIC_INVENTORY.md) · [Calculations](docs/CALCULATIONS.md) · [Data model](docs/DATA_MODEL.md) · [Design system](docs/DESIGN_SYSTEM.md) · [Security](docs/SECURITY.md) · [Testing](docs/TESTING.md) · [Roadmap](docs/ROADMAP.md) · [Overview & status](docs/PROJECT_STATUS.md) · [ADRs](docs/adr/)

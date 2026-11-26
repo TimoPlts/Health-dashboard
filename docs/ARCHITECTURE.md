@@ -35,6 +35,7 @@ Single-user, local-first web app (installable PWA) with a server that owns crede
 - **0001** PWA + Node server, not native, for v1: all sources are cloud APIs; HealthKit/BLE not needed.
 - **0002** SQLite (better-sqlite3 + Drizzle): single user, zero ops, trivial backup (one file).
 - **0003** Polling sync with lookback instead of Google webhooks: no public endpoint needed. Webhooks can be added when hosted.
+- **0005** Workouts from Google exercise sessions; Hevy out of scope (Hevy's Apple Health copies carry no sets/reps/weights).
 - **0004** Google `reconcile` for activity interval types, `list` (google-wearables) for vitals: prevents phone + band double counting while keeping provenance for HR.
 
 ## Sync algorithm (per Google stream)
@@ -42,6 +43,8 @@ Single-user, local-first web app (installable PWA) with a server that owns crede
 2. Split into `chunkDays` windows (1 day for HR). For each: page through `list`/`reconcile`, store raw page, normalize, upsert in one transaction, advance `syncedThroughMs`.
 3. Session streams (sleep, exercise) *replace* their window: records no longer returned by the provider are deleted (edits/deletions propagate).
 4. Errors are recorded per stream. Other streams continue. 401/403/OAuth errors stop the run (no hammering).
+5. State invariants: `syncedThroughMs` only moves forward. `backfilledFromMs` is written once, after all chunks of a stream succeed (earliest start covered). Writing it per chunk from stale state once made every sync re-fetch the full year (fixed in 0.4.1).
+6. One sync at a time: in-process join plus a lock file in `BASELINE_HOME`. A lock whose process is gone, or older than 45 min, is replaced. Runs left `running` by a stopped server are marked `interrupted`.
 
 Hevy: templates full refresh → workouts full backfill once → afterwards `/v1/workouts/events?since=cursor` (updates upsert, deletes soft-delete). Cursor = sync start − 5 min.
 
