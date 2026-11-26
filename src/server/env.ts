@@ -26,8 +26,9 @@ export type Env = Omit<z.infer<typeof schema>, "DATABASE_PATH"> & { DATABASE_PAT
 let cached: Env | undefined;
 
 export function env(): Env {
+  // Cheap stat per call; picks up `npm run configure` changes without a restart.
+  if (loadRuntimeConfig().changed) cached = undefined;
   if (cached) return cached;
-  loadRuntimeConfig();
   const parsed = schema.parse(process.env);
   const empty = (v?: string) => (v && v.trim() !== "" ? v : undefined);
   const demo = empty(parsed.DEMO_MODE);

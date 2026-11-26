@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -79,21 +79,27 @@ export function parseEnvFile(text: string): Record<string, string> {
   return out;
 }
 
-let loaded = false;
+let loadedMtime: number | null = null;
+const fromFile = new Set<string>();
 
 /**
- * Load <BASELINE_HOME>/config.env into process.env once. Real environment variables win, so a
- * future server can inject secrets via its own mechanism instead of the file.
+ * Load <BASELINE_HOME>/config.env into process.env. Real environment variables win, so a future server
+ * can inject secrets its own way. Re-reads the file when it changes (e.g. after `npm run configure`
+ * while the app is running). Returns `changed: true` when values were (re)applied.
  */
-export function loadRuntimeConfig(): { configFile: string; found: boolean } {
+export function loadRuntimeConfig(): { configFile: string; found: boolean; changed: boolean } {
   const { configFile } = runtimePaths();
-  if (loaded) return { configFile, found: existsSync(configFile) };
-  loaded = true;
-  if (!existsSync(configFile)) return { configFile, found: false };
+  if (!existsSync(configFile)) return { configFile, found: false, changed: false };
+  const mtime = statSync(configFile).mtimeMs;
+  if (mtime === loadedMtime) return { configFile, found: true, changed: false };
+  loadedMtime = mtime;
   for (const [k, v] of Object.entries(parseEnvFile(readFileSync(configFile, "utf8")))) {
-    if (process.env[k] === undefined || process.env[k] === "") process.env[k] = v;
+    if (fromFile.has(k) || process.env[k] === undefined || process.env[k] === "") {
+      process.env[k] = v;
+      fromFile.add(k);
+    }
   }
-  return { configFile, found: true };
+  return { configFile, found: true, changed: true };
 }
 
 /** Create a runtime sub-directory after verifying it is safe. */
