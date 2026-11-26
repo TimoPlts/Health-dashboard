@@ -36,10 +36,17 @@ export class GoogleHealthClient {
     this.throttle = createThrottle(throttleMs);
   }
 
-  private async get(url: string): Promise<Response> {
+  private get(url: string): Promise<Response> {
+    return this.request(url, { method: "GET" });
+  }
+
+  private async request(url: string, init: { method: "GET" | "POST"; body?: string }): Promise<Response> {
     await this.throttle();
     const send = async () =>
-      fetchWithRetry(url, { headers: { authorization: `Bearer ${await this.getAccessToken()}`, accept: "application/json" } }, this.retry);
+      fetchWithRetry(url, {
+        method: init.method, body: init.body,
+        headers: { authorization: `Bearer ${await this.getAccessToken()}`, accept: "application/json", ...(init.body ? { "content-type": "application/json" } : {}) },
+      }, this.retry);
     let res = await send();
     if (res.status === 401 && this.onUnauthorized) {
       // Token revoked or expired early: force a refresh once, then retry.
@@ -54,6 +61,33 @@ export class GoogleHealthClient {
     const text = await res.text();
     if (!res.ok) throw new HttpError(res.status, text.slice(0, 500), res.url);
     return JSON.parse(text) as Record<string, unknown>;
+  }
+
+  /**
+   * dailyRollUp over a civil date range [fromDate, toDate) ("YYYY-MM-DD"), one bucket per day.
+   * POST body per developers.google.com/health/reference/rest/v4/users.dataTypes.dataPoints/dailyRollUp.
+   * Buckets in the user's civil days; a value field is absent when nothing was measured on-wrist/manually.
+   */
+  async *dailyRollUp(p: { dataType: string; fromDate: string; toDate: string; pageSize?: number; dataSourceFamily?: DataSourceFamily }): AsyncGenerator<Page> {
+    const civil = (s: string) => { const [year, month, day] = s.split("-").map(Number); return { date: { year, month, day } }; };
+    let pageToken: string | undefined;
+    do {
+      const body: Record<string, unknown> = { range: { start: civil(p.fromDate), end: civil(p.toDate) }, windowSizeDays: 1 };
+      if (p.pageSize) body.pageSize = p.pageSize;
+      if (p.dataSourceFamily) body.dataSourceFamily = `users/me/dataSourceFamilies/${p.dataSourceFamily}`;
+      if (pageToken) body.pageToken = pageToken;
+      const url = `${GOOGLE_HEALTH_BASE}/users/me/dataTypes/${p.dataType}/dataPoints:dailyRollUp`;
+      const res = await this.request(url, { method: "POST", body: JSON.stringify(body) });
+      const bodyText = await res.text();
+      if (!res.ok) throw new HttpError(res.status, bodyText.slice(0, 500), url);
+      const json = JSON.parse(bodyText) as { rollupDataPoints?: Record<string, unknown>[]; nextPageToken?: string };
+      yield {
+        bodyText, status: res.status,
+        requestKey: `dailyRollUp ${p.dataType} ${p.fromDate}..${p.toDate} ${p.dataSourceFamily ?? ""} ${pageToken ? "page" : "first"}`,
+        dataPoints: json.rollupDataPoints ?? [],
+      };
+      pageToken = json.nextPageToken || undefined;
+    } while (pageToken);
   }
 
   /** Iterate all pages for a list/reconcile query. Results are ordered newest-first by the API. */

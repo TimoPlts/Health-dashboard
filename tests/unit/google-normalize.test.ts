@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGoogle, parseDuration, parseDate, num, unionField, SUPPORTED_GOOGLE_TYPES } from "@/server/providers/google/normalize";
+import { normalizeGoogle, parseDuration, parseDate, num, unionField, SUPPORTED_GOOGLE_TYPES, SUPPORTED_ROLLUP_TYPES } from "@/server/providers/google/normalize";
 import { buildFilter, chunkWindows, GOOGLE_STREAMS } from "@/server/providers/google/streams";
 import { dailyHrvPoint, dailyRhrPoint, exercisePoint, hrPoint, sleepPoint, stepsPoint, weightPoint } from "../fixtures/google";
 
@@ -69,7 +69,7 @@ describe("normalizeGoogle", () => {
   });
 
   it("every configured stream has a normalizer", () => {
-    for (const s of GOOGLE_STREAMS) expect(SUPPORTED_GOOGLE_TYPES).toContain(s.dataType);
+    for (const s of GOOGLE_STREAMS) expect(s.method === "dailyRollUp" ? SUPPORTED_ROLLUP_TYPES : SUPPORTED_GOOGLE_TYPES).toContain(s.dataType);
   });
 });
 
@@ -77,12 +77,12 @@ describe("filters & windows", () => {
   const a = Date.UTC(2026, 2, 1), b = Date.UTC(2026, 2, 2);
   it("builds AIP-160 filters per record kind", () => {
     expect(buildFilter({ dataType: "heart-rate", filter: "sample" }, a, b)).toBe(
-      'heartRate.sample_time.physical_time >= "2026-03-01T00:00:00Z" AND heartRate.sample_time.physical_time < "2026-03-02T00:00:00Z"',
+      'heart_rate.sample_time.physical_time >= "2026-03-01T00:00:00Z" AND heart_rate.sample_time.physical_time < "2026-03-02T00:00:00Z"',
     );
     expect(buildFilter({ dataType: "steps", filter: "interval" }, a, b)).toContain("steps.interval.start_time >=");
     expect(buildFilter({ dataType: "sleep", filter: "sleep" }, a, b)).toContain("sleep.interval.end_time <");
     expect(buildFilter({ dataType: "daily-resting-heart-rate", filter: "daily" }, a, b)).toBe(
-      'dailyRestingHeartRate.date >= "2026-03-01" AND dailyRestingHeartRate.date < "2026-03-02"',
+      'daily_resting_heart_rate.date >= "2026-03-01" AND daily_resting_heart_rate.date < "2026-03-02"',
     );
   });
   it("chunks windows without gaps or overlap", () => {

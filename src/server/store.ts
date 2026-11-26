@@ -5,6 +5,7 @@ import type { DB } from "./db/client";
 import * as t from "./db/schema";
 import { sourceKey, type NormalizedBatch, type SourceDescriptor } from "./providers/google/normalize";
 import type { HevyTemplate, HevyWorkout } from "./providers/hevy/client";
+import { civilDate } from "../lib/time";
 
 /** Store an original provider response verbatim (gzip). Identical bodies are stored once. */
 export function storeRawPage(db: DB, provider: string, resource: string, requestKey: string, status: number, bodyText: string): number {
@@ -47,7 +48,7 @@ export function writeBatch(
   db: DB,
   batch: NormalizedBatch,
   rawPageId: number | null,
-  replace?: { kind: "sleep" | "exercise"; startMs: number; endMs: number },
+  replace?: { kind: "sleep" | "exercise"; startMs: number; endMs: number; civil?: { from: string; to: string; timeZone: string } },
 ): WriteStats {
   const stats: WriteStats = { hr: 0, obs: 0, daily: 0, sleep: 0, exercise: 0, deleted: 0 };
   const cache = new Map<string, number>();
@@ -92,10 +93,22 @@ export function writeBatch(
       stats.sleep++;
     }
     if (replace?.kind === "exercise") {
-      const keep = batch.exercise.map((e) => e.id);
-      const res = d.delete(t.exerciseSessions)
-        .where(and(gte(t.exerciseSessions.startMs, replace.startMs), lt(t.exerciseSessions.startMs, replace.endMs), keep.length ? notInArray(t.exerciseSessions.id, keep) : sql`1=1`)).run();
-      stats.deleted += res.changes;
+      const keep = new Set(batch.exercise.map((e) => e.id));
+      const civil = replace.civil;
+      // With a civil window, widen the UTC prefilter by a day each side and match on each row's own civil start date
+      // (start + its UTC offset) — the same thing the API's civil_start_time filter matches on.
+      const pad = civil ? 86_400_000 * 1.5 : 0;
+      const candidates = d.select({ id: t.exerciseSessions.id, startMs: t.exerciseSessions.startMs, off: t.exerciseSessions.startOffsetS }).from(t.exerciseSessions)
+        .where(and(gte(t.exerciseSessions.startMs, replace.startMs - pad), lt(t.exerciseSessions.startMs, replace.endMs + pad))).all();
+      for (const c of candidates) {
+        if (keep.has(c.id)) continue;
+        if (civil) {
+          const day = civilDate(c.startMs, c.off, civil.timeZone);
+          if (day < civil.from || day >= civil.to) continue;
+        }
+        d.delete(t.exerciseSessions).where(eq(t.exerciseSessions.id, c.id)).run();
+        stats.deleted++;
+      }
     }
     for (const e of batch.exercise) {
       const sourceId = resolveSourceId(d, e.source, cache);

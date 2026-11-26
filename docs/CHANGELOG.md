@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-11-26 (Phase 1: Google data foundation verified)
+### Fixed
+- Google filters used camelCase type names (`heartRate.sample_time…`) → HTTP 400 for 20 of 24 streams. Filters now use snake_case; paths stay kebab-case.
+- Exercise filter: the API only accepts `exercise.interval.civil_start_time`; window replacement now matches the same civil dates (no deletion of sessions just across midnight).
+- Today's total energy was always "—" (basal energy is never provided for the Air); it now uses Google's `total-calories` daily rollup.
+- Workout detail preferred any overlapping Google session; it now prefers the Fitbit-recorded one over Hevy's Apple Health copy.
+### Added
+- Streams: activity-level, floors, altitude, swim-lengths-data, height, run-vo2-max, blood-glucose, core-body-temperature (35 streams total).
+- `dailyRollUp` client + streams: total-calories, calories-in-heart-rate-zone, heart-rate daily min/avg/max.
+- HRV LF/HF power, respiratory-rate SD, blood-glucose and core-temperature attributes.
+- `npm run probe:google` rewritten: OK_DATA / OK_EMPTY / ERROR per stream, all pages, HR resolution, double-count check, `--history`.
+- `npm run verify:google`: DB vs Google daily aggregates, duplicates, overlaps, sleep integrity, timestamps (values only with `--show-values`).
+- `npm run sync -- --days N`; a later larger backfill extends history backwards automatically.
+- Regression tests for every stream's method/filter/normalizer (138 tests).
+### Verified against real data
+- All 35 streams return valid responses. HR is sampled every 3 s; stored daily HR min/avg/max equals Google's exactly. Σ reconciled steps/distance/energy per day equals Google's daily totals exactly; raw multi-source lists would double count (up to +100 %). Re-sync is idempotent.
+
+
 ## 0.2.0 — 2026-11-26 (Phase 1 prep)
 ### Changed
 - Renamed to **Baseline** (package, metadata, manifest, icons, login wordmark, docs).

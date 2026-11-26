@@ -29,7 +29,7 @@ Base: `https://health.googleapis.com/v4`
 | `get`, `create`, `patch`, `batchDelete`, `exportExerciseTcx` | | not used (read-only app) |
 
 - `pageSize` default 1440, max 10 000; **sleep & exercise max 25**. `nextPageToken` pagination. Results newest-first.
-- `filter` (AIP-160): `heartRate.sample_time.physical_time >= "…Z"`, `steps.interval.start_time`, `sleep.interval.end_time`, `dailyRestingHeartRate.date >= "YYYY-MM-DD"`; civil variants exist. **[doc; exact syntax unverified — first thing the probe checks]**
+- `filter` (AIP-160): data type in **snake_case** (`heart_rate.sample_time.physical_time >= "…Z"`, `steps.interval.start_time`, `sleep.interval.end_time`, `daily_resting_heart_rate.date >= "YYYY-MM-DD"`). Paths stay kebab-case. **[verified — see §1.10]**
 - `dataSourceFamily`: `all-sources` (default) | `google-wearables` | `google-sources` | `self-sources`. Not supported by `list` for sleep.
 
 ### 1.4 Data types relevant to this app **[doc]**
@@ -49,6 +49,18 @@ Base: `https://health.googleapis.com/v4`
 | Other | ECG, IRN, nutrition, hydration, glucose, core temperature | | not used now |
 
 - **Not exposed anywhere in the API:** Fitbit **Sleep Score**, **Daily Readiness**, cardio load / target load, stress / EDA score **[doc — searched all pages read; absence is the finding]**. `total-calories` exists only as a rollup value.
+
+### 1.10 Verified against the owner's real account (2026-11-26) **[real]**
+- **Filter naming:** camelCase or kebab type names in filters → `400 INVALID_DATA_POINT_FILTER_DATA_TYPE_RESTRICTION`. snake_case works for every type. (The list-method page's own example uses camelCase; it is wrong.)
+- **Filterable fields:** sample → `<t>.sample_time.physical_time`; interval → `<t>.interval.start_time`; daily → `<t>.date`; sleep → `sleep.interval.end_time`; **exercise → only `exercise.interval.civil_start_time`** (`start_time` → `INVALID_DATA_POINT_FILTER_DATA_TYPE_MEMBER`). Only `>=` / `<` with AND.
+- **Methods:** `floors` has no `list` (reconcile/rollUp only). `total-calories`, `calories-in-heart-rate-zone` are rollup-only. `basal-energy-burned` supports list/reconcile but not dailyRollUp, and is empty for this account. `skin-temperature-sensors` exists only on `v4beta`.
+- **dailyRollUp:** `POST …/dataPoints:dailyRollUp`, body `{ range: { start: { date: {year,month,day} }, end: {…} }, windowSizeDays: 1 }`; response `rollupDataPoints[]` with `civilStartTime.date` and a type-specific value (`totalCalories.kcalSum`, `steps.countSum` (string), `heartRate.beatsPerMinuteAvg/Min/Max`, `caloriesInHeartRateZone.caloriesInHeartRateZones[]{heartRateZone,kcal}`). Days without data have no value field.
+- **Pagination:** `heart-rate` pages are capped at **5 000** points even with pageSize 10 000; `nextPageToken` must be followed (≈15 pages for 3 days).
+- **Double counting:** raw `list` for steps/distance/active energy contains Fitbit Air **and** iPhone (Apple Health) and, for energy, Hevy. Σ list per day exceeded Google's daily total by up to 56 % (steps) and 100 % (energy). Σ `reconcile` per day equalled `dailyRollUp` exactly, with zero overlapping intervals. On days with Air data the reconciled total equals the Air's own data; before the Air, iPhone data fills in.
+- **Heart rate:** Fitbit Air samples every **3 s** (median; p10 1 s, p99 3 s). Stored-sample daily min/avg/max equals Google's `dailyRollUp` exactly. `utcOffset` present on every sample.
+- **Sleep:** `reconcile` returns `dataPointName` (list returns `name`); stages + `shortAwakenings`; Σ non-awake stage minutes = `summary.minutesAsleep`.
+- **Exercise:** `list` returns both Fitbit-recorded sessions and the copy Hevy writes to Apple Health (`HEALTH_KIT`, `com.hevyapp.hevy`). Includes `metricsSummary` (calories, avg HR, AZM, HR-zone durations, steps, distance) and `exerciseEvents`.
+- **History:** Air data from first wear (2026-11-24); iPhone step history imported by Google back to 2026-10-25.
 
 ### 1.5 OAuth **[doc]** ([scopes](https://developers.google.com/health/scopes), [setup](https://developers.google.com/health/setup))
 - Standard Google OAuth 2.0: `accounts.google.com/o/oauth2/v2/auth`, `oauth2.googleapis.com/token`; `access_type=offline` for refresh tokens; **access token lifetime 1 h**.

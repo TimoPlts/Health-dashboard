@@ -1,8 +1,11 @@
 /**
  * CLI sync — same engine as the web app. Suitable for Windows Task Scheduler / cron.
- *   npm run sync
+ *   npm run sync                 # incremental (first run: BACKFILL_DAYS of history, default 365)
+ *   npm run sync -- --days 2     # small verification import; a later larger --days extends history backwards
  */
 import "./_env";
+const daysArg = process.argv.indexOf("--days");
+if (daysArg > -1) process.env.BACKFILL_DAYS = process.argv[daysArg + 1];
 import { env } from "../src/server/env";
 import { openDatabase } from "../src/server/db/client";
 import { syncAll } from "../src/server/sync/run";

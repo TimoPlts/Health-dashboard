@@ -107,7 +107,9 @@ export function getToday(db: DB, date = todayDate()) {
       distanceM: intervalSum(db, "distance", dayStart, dayEnd),
       activeKcal: active,
       basalKcal: basal,
-      totalKcal: active !== null && basal !== null ? active + basal : null,
+      // Google's own daily total (dailyRollUp total-calories). Basal energy is not exposed for the Fitbit Air
+      // (verified: always empty), so active + basal cannot be used. Fallback kept for other sources.
+      totalKcal: dailyValue(db, "total_kcal", date) ?? (active !== null && basal !== null ? active + basal : null),
       azm: intervalSum(db, "active-zone-minutes", dayStart, dayEnd),
     },
     workouts: getWorkouts(db, 3),
@@ -162,9 +164,13 @@ export function getWorkoutDetail(db: DB, id: string) {
   const endHr = at(w.endMs), hr60 = at(w.endMs + 60_000), hr120 = at(w.endMs + 120_000);
 
   // Overlapping Google exercise session (provider calorie estimate). Never summed with anything else.
-  const google = db.select().from(t.exerciseSessions).where(and(lt(t.exerciseSessions.startMs, w.endMs), gte(t.exerciseSessions.endMs, w.startMs))).all()
-    .map((g) => ({ ...g, overlapS: (Math.min(g.endMs, w.endMs) - Math.max(g.startMs, w.startMs)) / 1000 }))
-    .sort((a, b) => b.overlapS - a.overlapS)[0] ?? null;
+  // Prefer a Fitbit-recorded session: Hevy also writes each workout to Apple Health, which Google then imports
+  // (verified in real data) — that copy carries Hevy's own estimate, not a measurement from the wearable.
+  const google = db.select({ s: t.exerciseSessions, platform: t.sources.platform }).from(t.exerciseSessions)
+    .leftJoin(t.sources, eq(t.sources.id, t.exerciseSessions.sourceId))
+    .where(and(lt(t.exerciseSessions.startMs, w.endMs), gte(t.exerciseSessions.endMs, w.startMs))).all()
+    .map(({ s: g, platform }) => ({ ...g, platform, overlapS: (Math.min(g.endMs, w.endMs) - Math.max(g.startMs, w.startMs)) / 1000 }))
+    .sort((a, b) => Number(b.platform === "FITBIT") - Number(a.platform === "FITBIT") || b.overlapS - a.overlapS)[0] ?? null;
 
   // Previous similar workout: same routine, else same title.
   const prev = db.select().from(t.hevyWorkouts)
@@ -181,7 +187,7 @@ export function getWorkoutDetail(db: DB, id: string) {
     }),
     volume: volumeLoad(sets),
     hr: { timeline, stats, zones, recovery: { endHr, drop60: endHr !== null && hr60 !== null ? endHr - hr60 : null, drop120: endHr !== null && hr120 !== null ? endHr - hr120 : null } },
-    googleSession: google ? { exerciseType: google.exerciseType, caloriesKcal: (google.metrics as Record<string, unknown> | null)?.caloriesKcal ?? null, overlapS: google.overlapS } : null,
+    googleSession: google ? { exerciseType: google.exerciseType, platform: google.platform, caloriesKcal: (google.metrics as Record<string, unknown> | null)?.caloriesKcal ?? null, overlapS: google.overlapS } : null,
     previous: prev ? { id: prev.id, title: prev.title, startMs: prev.startMs, volume: volumeLoad(prevSets) } : null,
   };
 }

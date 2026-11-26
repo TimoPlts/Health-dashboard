@@ -2,8 +2,8 @@ import { and, eq } from "drizzle-orm";
 import type { DB } from "../db/client";
 import { syncRuns, syncState } from "../db/schema";
 import { GoogleHealthClient } from "../providers/google/client";
-import { normalizeGoogle } from "../providers/google/normalize";
-import { buildFilter, chunkWindows, GOOGLE_STREAMS, type GoogleStream } from "../providers/google/streams";
+import { normalizeGoogle, normalizeGoogleDailyRollup } from "../providers/google/normalize";
+import { buildFilter, chunkWindows, exerciseCivilWindow, GOOGLE_STREAMS, rollupRange, streamId, type GoogleStream } from "../providers/google/streams";
 import { HevyClient } from "../providers/hevy/client";
 import { markHevyWorkoutDeleted, storeRawPage, upsertHevyTemplate, upsertHevyWorkout, writeBatch } from "../store";
 import { HttpError, redactUrl } from "../http";
@@ -47,12 +47,22 @@ export function describeError(e: unknown): string {
   return "Unknown error";
 }
 
-/** Window to fetch for a stream: backfill from `backfillDays` ago, or from syncedThrough − lookback. */
-export function planWindow(stream: Pick<GoogleStream, "lookbackDays">, state: { syncedThroughMs: number | null } | undefined, now: number, backfillDays: number): [number, number] {
+/**
+ * Window to fetch for a stream: backfill from `backfillDays` ago, or from syncedThrough − lookback.
+ * If `backfillDays` now reaches further back than what was ever fetched (e.g. a small verification sync followed
+ * by the full import), the whole range is fetched again from the new start; upserts make the overlap harmless.
+ */
+export function planWindow(
+  stream: Pick<GoogleStream, "lookbackDays">,
+  state: { syncedThroughMs: number | null; backfilledFromMs?: number | null } | undefined,
+  now: number,
+  backfillDays: number,
+): [number, number] {
   const todayStart = Math.floor(now / DAY) * DAY;
   const end = todayStart + DAY; // include today (daily filters are date-granular)
   const backfillStart = todayStart - backfillDays * DAY;
   if (!state?.syncedThroughMs) return [backfillStart, end];
+  if (state.backfilledFromMs != null && backfillStart < state.backfilledFromMs) return [backfillStart, end];
   const incremental = Math.floor((state.syncedThroughMs - stream.lookbackDays * DAY) / DAY) * DAY;
   return [Math.max(backfillStart, incremental), end];
 }
@@ -60,25 +70,37 @@ export function planWindow(stream: Pick<GoogleStream, "lookbackDays">, state: { 
 export async function syncGoogle(
   db: DB,
   client: GoogleHealthClient,
-  opts: { backfillDays: number; trigger?: string; streams?: string[]; now?: number; log?: SyncLogger },
+  opts: {
+    backfillDays: number; trigger?: string; now?: number; log?: SyncLogger;
+    /** Stream ids (dataType, or "<dataType>:daily-rollup" for rollups) to sync; default all. */
+    streams?: string[];
+    /** Home time zone; used for the civil-time exercise filter. */
+    timeZone?: string;
+  },
 ): Promise<{ status: string; results: StreamResult[] }> {
   const log = opts.log ?? silent;
   const runId = startRun(db, "google", opts.trigger ?? "manual");
   const results: StreamResult[] = [];
   const now = opts.now ?? Date.now();
-  const streams = GOOGLE_STREAMS.filter((s) => !opts.streams || opts.streams.includes(s.dataType));
+  const tz = opts.timeZone ?? "UTC";
+  const streams = GOOGLE_STREAMS.filter((s) => !opts.streams || opts.streams.includes(streamId(s)));
 
   for (const stream of streams) {
-    const r: StreamResult = { stream: stream.dataType, ok: true, rows: 0, pages: 0, skipped: 0, deleted: 0 };
-    const state = getState(db, "google", stream.dataType);
+    const id = streamId(stream);
+    const r: StreamResult = { stream: id, ok: true, rows: 0, pages: 0, skipped: 0, deleted: 0 };
+    const state = getState(db, "google", id);
     const [from, to] = planWindow(stream, state, now, opts.backfillDays);
-    setState(db, "google", stream.dataType, { lastAttemptAt: Date.now() });
+    setState(db, "google", id, { lastAttemptAt: Date.now() });
     try {
       for (const [ws, we] of chunkWindows(from, to, stream.chunkDays)) {
         const pagesInWindow: { batch: ReturnType<typeof normalizeGoogle>; rawId: number }[] = [];
-        for await (const page of client.pages({ dataType: stream.dataType, method: stream.method, filter: buildFilter(stream, ws, we), pageSize: stream.pageSize, dataSourceFamily: stream.family })) {
+        const pages = stream.method === "dailyRollUp"
+          ? client.dailyRollUp({ dataType: stream.dataType, fromDate: rollupRange(ws, we)[0], toDate: rollupRange(ws, we)[1], pageSize: stream.pageSize, dataSourceFamily: stream.family })
+          : client.pages({ dataType: stream.dataType, method: stream.method, filter: buildFilter(stream, ws, we, tz), pageSize: stream.pageSize, dataSourceFamily: stream.family });
+        for await (const page of pages) {
           const rawId = storeRawPage(db, "google", `${stream.dataType}:${stream.method}`, page.requestKey, page.status, page.bodyText);
-          pagesInWindow.push({ batch: normalizeGoogle(stream.dataType, page.dataPoints), rawId });
+          const batch = stream.method === "dailyRollUp" ? normalizeGoogleDailyRollup(stream.dataType, page.dataPoints) : normalizeGoogle(stream.dataType, page.dataPoints);
+          pagesInWindow.push({ batch, rawId });
           r.pages++;
         }
         // Session streams: merge all pages of the window first so window-replacement sees every record.
@@ -86,7 +108,11 @@ export async function syncGoogle(
           const merged = pagesInWindow.reduce((acc, p) => {
             acc.sleep.push(...p.batch.sleep); acc.exercise.push(...p.batch.exercise); acc.skipped += p.batch.skipped; return acc;
           }, { hr: [], obs: [], daily: [], sleep: [], exercise: [], skipped: 0 } as ReturnType<typeof normalizeGoogle>);
-          const s = writeBatch(db, merged, pagesInWindow[0]?.rawId ?? null, { kind: stream.dataType === "sleep" ? "sleep" : "exercise", startMs: ws, endMs: we });
+          // Exercise is filtered on civil start dates, so stale rows are matched on the same civil dates.
+          const replace = stream.dataType === "sleep"
+            ? { kind: "sleep" as const, startMs: ws, endMs: we }
+            : { kind: "exercise" as const, startMs: ws, endMs: we, civil: { from: exerciseCivilWindow(ws, we, tz)[0], to: exerciseCivilWindow(ws, we, tz)[1], timeZone: tz } };
+          const s = writeBatch(db, merged, pagesInWindow[0]?.rawId ?? null, replace);
           r.rows += s.sleep + s.exercise; r.deleted += s.deleted; r.skipped += merged.skipped;
         } else {
           for (const p of pagesInWindow) {
@@ -94,19 +120,19 @@ export async function syncGoogle(
             r.rows += s.hr + s.obs + s.daily; r.skipped += p.batch.skipped;
           }
         }
-        setState(db, "google", stream.dataType, {
+        setState(db, "google", id, {
           syncedThroughMs: Math.min(we, now),
           backfilledFromMs: Math.min(state?.backfilledFromMs ?? ws, ws),
         });
       }
-      const prev = getState(db, "google", stream.dataType);
-      setState(db, "google", stream.dataType, { lastSuccessAt: Date.now(), lastError: null, rowsTotal: (prev?.rowsTotal ?? 0) + r.rows });
-      log.info(`google ${stream.dataType}: ${r.rows} rows, ${r.pages} pages, ${r.skipped} skipped`);
+      const prev = getState(db, "google", id);
+      setState(db, "google", id, { lastSuccessAt: Date.now(), lastError: null, rowsTotal: (prev?.rowsTotal ?? 0) + r.rows });
+      log.info(`google ${id}: ${r.rows} rows, ${r.pages} pages, ${r.skipped} skipped`);
     } catch (e) {
       r.ok = false;
       r.error = describeError(e);
-      setState(db, "google", stream.dataType, { lastError: r.error });
-      log.warn(`google ${stream.dataType} failed: ${r.error}`);
+      setState(db, "google", id, { lastError: r.error });
+      log.warn(`google ${id} failed: ${r.error}`);
       results.push(r);
       // Auth failures affect every stream — stop early instead of hammering the API.
       if (e instanceof OAuthError || (e instanceof HttpError && (e.status === 401 || e.status === 403))) {

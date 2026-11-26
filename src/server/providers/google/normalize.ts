@@ -116,7 +116,10 @@ type SampleSpec = { field: (p: J) => unknown; unit: string; scale?: number; attr
 const SAMPLE_TYPES: Record<string, SampleSpec> = {
   "heart-rate-variability": {
     field: (p) => p.rootMeanSquareOfSuccessiveDifferencesMilliseconds, unit: "ms",
-    attrs: (p) => ({ sdnnMs: num(p.standardDeviationMilliseconds) }),
+    attrs: (p) => ({
+      sdnnMs: num(p.standardDeviationMilliseconds),
+      lfPower: num(obj(p.metadata)?.lowFrequencyPower), hfPower: num(obj(p.metadata)?.highFrequencyPower),
+    }),
   },
   "oxygen-saturation": { field: (p) => p.percentage, unit: "%" },
   "respiratory-rate-sleep-summary": {
@@ -124,6 +127,7 @@ const SAMPLE_TYPES: Record<string, SampleSpec> = {
     attrs: (p) => ({
       deep: num(obj(p.deepSleepStats)?.breathsPerMinute), light: num(obj(p.lightSleepStats)?.breathsPerMinute),
       rem: num(obj(p.remSleepStats)?.breathsPerMinute), signalToNoise: num(obj(p.fullSleepStats)?.signalToNoise),
+      sd: num(obj(p.fullSleepStats)?.standardDeviation),
     }),
   },
   weight: { field: (p) => p.weightGrams, unit: "kg", scale: 1 / 1000 },
@@ -131,6 +135,11 @@ const SAMPLE_TYPES: Record<string, SampleSpec> = {
   height: { field: (p) => p.heightMillimeters, unit: "m", scale: 1 / 1000 },
   "vo2-max": { field: (p) => p.vo2Max, unit: "mL/kg/min", attrs: (p) => ({ method: str(p.measurementMethod) }) },
   "run-vo2-max": { field: (p) => p.runVo2Max, unit: "mL/kg/min" },
+  "blood-glucose": {
+    field: (p) => p.bloodGlucoseMilligramsPerDeciliter, unit: "mg/dL",
+    attrs: (p) => ({ source: str(p.measurementSource), meal: str(p.mealType), timing: str(p.measurementTiming), specimen: str(p.specimen) }),
+  },
+  "core-body-temperature": { field: (p) => p.temperatureCelsius, unit: "°C", attrs: (p) => ({ location: str(p.measurementLocation) }) },
 };
 
 type IntervalSpec = { values: (p: J, durationMin: number) => { value: number | undefined; variant?: string }[]; unit: string };
@@ -149,6 +158,7 @@ const INTERVAL_TYPES: Record<string, IntervalSpec> = {
   "time-in-heart-rate-zone": { unit: "min", values: (p, d) => [{ value: d, variant: str(p.heartRateZoneType) }] },
   "sedentary-period": { unit: "min", values: (_p, d) => [{ value: d }] },
   "activity-level": { unit: "min", values: (p, d) => [{ value: d, variant: str(p.activityLevelType) }] },
+  "swim-lengths-data": { unit: "strokes", values: (p) => [{ value: num(p.strokeCount), variant: str(p.swimStrokeType) }] },
 };
 const mul = (v: number | undefined, f: number) => (v === undefined ? undefined : v * f);
 
@@ -277,6 +287,43 @@ export function normalizeGoogle(dataType: string, dataPoints: J[]): NormalizedBa
     }
 
     out.skipped++;
+  }
+  return out;
+}
+
+/** Rollups have no dataSource; they are Google's own cross-source daily aggregate. */
+export const ROLLUP_SOURCE: SourceDescriptor = { provider: "google", platform: "ROLLUP" };
+
+type RollupSpec = (v: J) => { metric: string; value: number | undefined; unit: string }[];
+const ROLLUP_TYPES: Record<string, RollupSpec> = {
+  "total-calories": (v) => [{ metric: "total_kcal", value: num(v.kcalSum), unit: "kcal" }],
+  "calories-in-heart-rate-zone": (v) =>
+    arr(v.caloriesInHeartRateZones).flatMap((z) => {
+      const o = obj(z), zone = str(o?.heartRateZone)?.toLowerCase();
+      return zone ? [{ metric: `kcal_hr_zone_${zone}`, value: num(o?.kcal), unit: "kcal" }] : [];
+    }),
+  "heart-rate": (v) => [
+    { metric: "hr_day_avg", value: num(v.beatsPerMinuteAvg), unit: "bpm" },
+    { metric: "hr_day_min", value: num(v.beatsPerMinuteMin), unit: "bpm" },
+    { metric: "hr_day_max", value: num(v.beatsPerMinuteMax), unit: "bpm" },
+  ],
+};
+export const SUPPORTED_ROLLUP_TYPES = Object.keys(ROLLUP_TYPES);
+
+/**
+ * dailyRollUp points → daily rows. The civil day is `civilStartTime.date`. A missing value field means nothing was
+ * measured that day (per the API reference) → no row, never 0. A present 0 is kept (device worn, nothing recorded).
+ */
+export function normalizeGoogleDailyRollup(dataType: string, points: J[]): NormalizedBatch {
+  const out = emptyBatch();
+  const spec = ROLLUP_TYPES[dataType];
+  const field = unionField(dataType);
+  for (const p of points) {
+    const date = parseDate(obj(obj(p.civilStartTime))?.date);
+    if (!spec || !date) { out.skipped++; continue; }
+    const v = obj(p[field]);
+    if (!v) continue; // no data that day — not an error
+    for (const r of spec(v)) if (r.value !== undefined) out.daily.push({ source: ROLLUP_SOURCE, date, ...r, value: r.value });
   }
   return out;
 }

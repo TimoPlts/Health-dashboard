@@ -22,7 +22,7 @@ export function syncAll(db: DB, trigger: string, log?: SyncLogger) {
     const google = getConnection(db, "google");
     if (google?.status === "connected") {
       const client = new GoogleHealthClient(() => getGoogleAccessToken(db), {}, async () => { await getGoogleAccessToken(db, { force: true }); });
-      out.google = await syncGoogle(db, client, { backfillDays: env().BACKFILL_DAYS, trigger, log });
+      out.google = await syncGoogle(db, client, { backfillDays: env().BACKFILL_DAYS, trigger, log, timeZone: env().HOME_TIME_ZONE });
     }
     const hevyKey = getHevyApiKey(db);
     if (hevyKey) out.hevy = await syncHevy(db, new HevyClient(hevyKey), { trigger, log });

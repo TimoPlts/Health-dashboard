@@ -96,6 +96,11 @@ describe("sync planning", () => {
     const [from] = planWindow({ lookbackDays: 2 }, { syncedThroughMs: Date.UTC(2026, 10, 26, 10) }, now, 30);
     expect(from).toBe(Date.UTC(2026, 10, 24));
   });
+  it("extends history backwards when backfillDays grows after a small verification sync", () => {
+    const state = { syncedThroughMs: Date.UTC(2026, 10, 26, 10), backfilledFromMs: Date.UTC(2026, 10, 24) };
+    expect(planWindow({ lookbackDays: 2 }, state, now, 2)[0]).toBe(Date.UTC(2026, 10, 24)); // incremental
+    expect(planWindow({ lookbackDays: 2 }, state, now, 365)[0]).toBe(Date.UTC(2025, 10, 26)); // full backfill
+  });
 });
 
 describe("Google OAuth URL", () => {

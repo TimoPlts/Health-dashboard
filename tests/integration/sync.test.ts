@@ -27,11 +27,11 @@ function windowContains(u: URL, iso: string) {
 let db: DB;
 beforeEach(() => { db = openDatabase(":memory:"); });
 
-function googleFetch(handlers: Record<string, (u: URL) => Response>) {
-  return vi.fn(async (input: string | URL | Request) => {
+function googleFetch(handlers: Record<string, (u: URL, init?: RequestInit) => Response>) {
+  return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const u = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     const type = /dataTypes\/([^/]+)\/dataPoints/.exec(u.pathname)?.[1] ?? "";
-    return (handlers[type] ?? (() => json({ dataPoints: [] })))(u);
+    return (handlers[type] ?? (() => json({ dataPoints: [] })))(u, init);
   });
 }
 
@@ -99,6 +99,53 @@ describe("Google sync", () => {
     const r401 = await syncGoogle(db, c401, { backfillDays: 1, now: NOW, streams: ["heart-rate", "steps"] });
     expect(r401.status).toBe("failed");
     expect(r401.results).toHaveLength(1);
+  });
+
+  it("daily rollups: POSTs a civil range and stores one row per day with a value", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const f = googleFetch({
+      "total-calories": (u, init) => {
+        expect(u.pathname.endsWith(":dailyRollUp")).toBe(true);
+        expect(init?.method).toBe("POST");
+        bodies.push(JSON.parse(String(init?.body)));
+        return json({ rollupDataPoints: [
+          { civilStartTime: { date: { year: 2026, month: 3, day: 2 } }, totalCalories: { kcalSum: 2300 } },
+          { civilStartTime: { date: { year: 2026, month: 3, day: 3 } } }, // nothing measured → no row
+        ] });
+      },
+    });
+    const client = new GoogleHealthClient(async () => "tok", { fetchImpl: f, sleep: async () => {} }, undefined, 0);
+    const r = await syncGoogle(db, client, { backfillDays: 2, now: NOW, streams: ["total-calories:daily-rollup"] });
+    expect(r.status).toBe("success");
+    expect(bodies[0]).toMatchObject({ range: { start: { date: { year: 2026, month: 3, day: 1 } }, end: { date: { year: 2026, month: 3, day: 4 } } }, windowSizeDays: 1 });
+    const rows = db.select().from(t.dailyMetrics).where(eq(t.dailyMetrics.metric, "total_kcal")).all();
+    expect(rows.map((x) => [x.date, x.value])).toEqual([["2026-03-02", 2300]]);
+    expect(db.select().from(t.syncState).where(eq(t.syncState.stream, "total-calories:daily-rollup")).get()?.lastSuccessAt).toBeTruthy();
+  });
+
+  it("exercise: civil-date filter, and only sessions on the re-fetched civil dates are replaced", async () => {
+    const ex = (id: string, start: string, end: string) => ({
+      name: `users/me/dataTypes/exercise/dataPoints/${id}`, dataSource: { platform: "FITBIT" },
+      exercise: { interval: { startTime: start, startUtcOffset: "3600s", endTime: end, endUtcOffset: "3600s" }, exerciseType: "WALKING" },
+    });
+    // 23:30Z on Mar 1 = 00:30 on Mar 2 in Brussels: belongs to civil date Mar 2.
+    const late = ex("late", "2026-03-01T23:30:00Z", "2026-03-02T00:10:00Z");
+    let returnLate = true;
+    const filters: string[] = [];
+    const f = googleFetch({
+      exercise: (u) => {
+        const flt = u.searchParams.get("filter")!;
+        filters.push(flt);
+        return json({ dataPoints: returnLate && windowContains(u, "2026-03-02") ? [late] : [] });
+      },
+    });
+    const client = new GoogleHealthClient(async () => "tok", { fetchImpl: f, sleep: async () => {} }, undefined, 0);
+    await syncGoogle(db, client, { backfillDays: 5, now: NOW, streams: ["exercise"], timeZone: "Europe/Brussels" });
+    expect(filters[0]).toMatch(/^exercise\.interval\.civil_start_time >= "\d{4}-\d{2}-\d{2}" AND exercise\.interval\.civil_start_time < "\d{4}-\d{2}-\d{2}"$/);
+    expect(db.select().from(t.exerciseSessions).all()).toHaveLength(1);
+    returnLate = false;
+    await syncGoogle(db, client, { backfillDays: 5, now: NOW, streams: ["exercise"], timeZone: "Europe/Brussels" });
+    expect(db.select().from(t.exerciseSessions).all()).toHaveLength(0);
   });
 
   it("refreshes once on 401 then succeeds", async () => {
