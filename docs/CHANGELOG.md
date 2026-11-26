@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.5.0 — unreleased (Production readiness)
+## 0.5.0 — 2026-11-26 (Production readiness)
+### Roadmap
+- `docs/ROADMAP.md`: prioritised features R1–R12 (labels, reports, Zone 2, sleep depth, goals, journal, correlations, …).
 ### Calculation audit ([FEATURE_AUDIT](FEATURE_AUDIT.md))
 - `acwr-ewma@2`: ACWR and training balance use only complete days with ≥ 10 h heart-rate coverage. Today's partial load no longer pulls the ratio down each morning.
 - `recovery@2`: HRV is required. RHR + sleep alone no longer produce a "recovery" score.

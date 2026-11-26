@@ -1,12 +1,12 @@
 # Baseline: project overview
 
-_Last updated: 2026-11-26 · describes commit `23a3d29` on branch `phase-0-foundation`_
+_Last updated: 2026-11-26 · describes commit `c5c8193` on branch `phase-0-foundation`_
 
 ## What it is
 Baseline is a private, single-user health and training app for one Fitbit Air wearer.
-- It reads all data from the **Google Health API** and stores it in a local SQLite database.
-- It shows the data in a mobile-first web app: Today, Sleep, Training, Trends, Health, metric detail and Settings.
-- On top of Google's measurements, it computes documented, versioned metrics: recovery, readiness, sleep score/debt/regularity, heart-rate load, zones and ACWR.
+- It reads all data from the **Google Health API** into a local SQLite database.
+- It shows the data in a mobile-first web app (Today, Sleep, Training, Trends, Health, 68 metric pages, Settings) with documented, versioned metrics: recovery, readiness, sleep score/debt/regularity, heart-rate load, zones, ACWR.
+- It runs on the owner's Windows PC as a supervised production server and is reached from the iPhone over **Tailscale (tailnet-only HTTPS)**.
 - It has no AI features, no cloud hosting and no paid dependencies. Runtime data stays in `%LOCALAPPDATA%\Baseline`, outside OneDrive and Git.
 
 ## What works
@@ -14,47 +14,51 @@ Verification levels: **verified on real data** › **tested** (unit/integration/
 
 | Area | Level | Evidence / notes |
 |---|---|---|
-| Google OAuth (Personal mode) | verified on real data | connected; token refresh works |
-| 35 Google data streams | verified on real data | `npm run probe:google`, `verify:google`. Details in [METRIC_INVENTORY](METRIC_INVENTORY.md) and [API_RESEARCH §1.10](API_RESEARCH.md) |
-| No double counting of steps/distance/energy | verified on real data | reconciled daily sums equal Google's `dailyRollUp` ([ADR-0004](adr/0004-reconcile-vs-list.md)) |
-| 365-day backfill + incremental sync | verified on real data | an incremental run takes about 1 min; re-sync is idempotent |
-| Automatic sync (in-process, every 30 min) | verified on real data | lock file prevents overlap; interrupted runs are recorded |
-| Derived metrics (TRIMP, %HRmax zones, worn time) | verified on real data (structure, HRmax model) | HRmax = 220 − age matches Google's zone bounds ([CALCULATIONS](CALCULATIONS.md)) |
-| Workouts from Google exercise sessions + HR | verified on real data (structure) | Fitbit and Hevy-via-Apple-Health duplicates merge correctly |
-| Recovery, readiness, ACWR | tested; run on real data but **calibrating** | need 14 nights (≈ 2026-12-08) and 21 tracked days (≈ 2026-12-15) |
-| Sleep score, debt, regularity | tested; run on real data | regularity needs 5 nights |
-| All page read models on real data | verified (no errors, 4–25 ms) | `npm run check:analytics` prints coverage and timings, never values |
-| UI (all pages, dark/light, phone/desktop) | tested on the fictional demo DB | Playwright + axe ([TESTING](TESTING.md)) |
-| Displayed values vs. the Google Health app | **unverified by the owner** | values match the API exactly; the owner has not yet compared them with the app |
+| Google OAuth, 35 data streams, no double counting | verified on real data | [METRIC_INVENTORY](METRIC_INVENTORY.md), [API_RESEARCH §1.10](API_RESEARCH.md), [ADR-0004](adr/0004-reconcile-vs-list.md) |
+| 365-day backfill + incremental sync (≈ 1 min) | verified on real data | sync state never regresses; interrupted runs recorded |
+| Calculations after the audit (`acwr-ewma@2`, `recovery@2`, `sleep-sri@2`, partial-day rule) | tested + run on real data | [FEATURE_AUDIT §3](FEATURE_AUDIT.md), [CALCULATIONS](CALCULATIONS.md) |
+| Recovery, readiness, ACWR on real data | **calibrating** | need 14 HRV nights (≈ 2026-12-08) and 21 complete days with ≥ 10 h wear (≈ 2026-12-15) |
+| Newly exposed metrics (breathing rate per sleep stage, SpO₂ low end, activity by intensity, AZM by zone) | verified on real data (structure) | night samples fall inside sleep sessions |
+| Workouts from Google sessions + HR | verified on real data (structure) | Fitbit and Hevy-via-Apple-Health duplicates merged |
+| Production server (build, supervisor, Task Scheduler at sign-in) | verified on this PC | crash → healthy in ≈ 3 s; graceful stop; logs in `BASELINE_HOME\logs` |
+| Security headers, no-store caching, tailnet identity gate, login allowlist | verified on this PC (curl against production) | [DEPLOYMENT](DEPLOYMENT.md); `tests/unit/production.test.ts` |
+| Tailscale Serve header forwarding | verified (temporary echo server, HTTP mode) | Host preserved; identity headers added |
+| **HTTPS on the tailnet + iPhone install** | **unverified, blocked** | HTTPS certificates are not enabled in the owner's Tailscale admin console (next action 1) |
+| Backups, verify, restore, export, retention | verified on real data | restore exercised end to end; export counts equal the database |
+| Delete all data | tested (fictional) | not run on real data, by design |
+| UI (all pages, dark/light, phone/desktop) | tested on the fictional demo DB | Playwright + axe, 12/12 |
+| Displayed values vs the Google Health app | unverified by the owner | values equal the API exactly |
 
-Test suite at `23a3d29`: 163 unit/integration tests pass, typecheck clean; 12 E2E passed at `d1b9c06` (no UI change since).
+Tests at `c5c8193`: 184 unit/integration pass, typecheck clean, 12 E2E pass.
 
 ## Problems and constraints
-- **Short history.** The Air was first worn on 2026-11-24, so baseline-dependent scores show "Calibrating n/14". No score is guessed.
-- **Workouts have no exercise detail.** Hevy's entries reach Google via Apple Health with type, time and calories only. Sets, reps and weights are never fabricated.
-- **Empty streams for this account:** basal energy, altitude, VO₂ max, body fat, blood glucose and core temperature. They are synced and will appear if a source writes them.
-- **Swim-length intervals** detected by the Air are unconfirmed (they may be false detections).
-- Google occasionally times out on large 90-day requests. The stream is retried on the next run.
-- Heart-rate load under-represents strength training (true of any HR-based method).
-- The app runs only while the PC's dev server is up; always-on hosting is undecided.
-- **The repo is public:** no credentials, real values, probe output or databases are ever committed ([SECURITY](SECURITY.md)).
-- `.next/` and `node_modules/` still sync to OneDrive (build artefacts only).
+- **Short history:** baseline-dependent scores show "Calibrating n/14" until enough nights exist. Calibration periods are not shortened.
+- **iPhone access waits on one manual Tailscale setting** (HTTPS certificates).
+- **Uptime:** the server runs only while the PC is on and awake. It starts at Windows sign-in; start at boot needs one admin command.
+- Workouts carry no sets, reps or weights (Hevy out of scope, [ADR-0005](adr/0005-workouts-from-google.md)).
+- Empty for this account: basal energy, altitude, VO₂ max, body fat, glucose, core temperature.
+- Swim-length detections are unconfirmed.
+- Google occasionally times out on large requests; the stream is retried on the next run.
+- The repo (with `node_modules` and `.next`) is in OneDrive. Build artefacts only; see DEPLOYMENT → Known limits.
+- **The GitHub repo is public:** no credentials, real values, probe output or databases are committed ([SECURITY](SECURITY.md)).
 
 ## Key decisions
-- PWA + local Node server, not native ([ADR-0001](adr/0001-pwa-plus-server.md)). SQLite ([ADR-0002](adr/0002-sqlite.md)). Polling sync with lookback windows ([ADR-0003](adr/0003-polling-sync.md)).
-- `reconcile` for activity, `list` for vitals ([ADR-0004](adr/0004-reconcile-vs-list.md)).
-- Hevy is out of scope. Workouts come from Google exercise sessions ([ADR-0005](adr/0005-workouts-from-google.md)).
-- Missing data is `null`/"—", never 0. Estimates are labelled. Scores show calibration progress instead of guessing.
-- Prefer Google's own measurements and published methods. Baseline's scores are its own and are not presented as WHOOP or Bevel equivalents ([CALCULATIONS](CALCULATIONS.md)).
-- Design is reviewed only on fictional demo data, never on real readings.
+- PWA + local Node server ([ADR-0001](adr/0001-pwa-plus-server.md)), SQLite ([ADR-0002](adr/0002-sqlite.md)), polling sync ([ADR-0003](adr/0003-polling-sync.md)), `reconcile` for activity ([ADR-0004](adr/0004-reconcile-vs-list.md)), workouts from Google sessions ([ADR-0005](adr/0005-workouts-from-google.md)).
+- **Remote access:** Tailscale Serve only, never Funnel or open ports. The app binds to 127.0.0.1, refuses forwarded requests without a tailnet identity, and limits access to the owner's Tailscale login.
+- **No service worker and `no-store` everywhere:** no health data is cached on the phone.
+- The Google OAuth redirect stays on localhost, so Google is reconnected on the PC and the OAuth client needs no change.
+- Missing data is `null`/"—", never 0. Today's partial totals are labelled "so far" and excluded from averages.
+- Recovery requires HRV. Weights of recovery and the sleep score are labelled app choices, not tuned.
+- Measurements are never pruned. Only caches, history and exports have retention.
+- Design is reviewed only on fictional demo data.
 
 ## Next three actions
-1. **Owner:** compare three days in Baseline with the Google Health app (`npm run verify:google -- 3 --show-values`, local terminal only).
-2. **Owner:** confirm whether the Air's swim-length detections are real. If not, decide whether to exclude them.
-3. **From 2026-12-08:** review recovery and readiness against how you feel; then merge `phase-0-foundation` into `main`.
+1. **Owner, about 5 min:** Tailscale admin console → DNS → enable **HTTPS Certificates**. Then run `npm run configure -- tailscale` on the PC and follow [DEPLOYMENT → On the iPhone](DEPLOYMENT.md) (Tailscale app, open the address in Safari, Add to Home Screen).
+2. **Owner:** for start-at-boot, run `npm run service -- install` once from an administrator terminal. Compare three days with the Google Health app (`npm run verify:google -- 3 --show-values`).
+3. **Development:** roadmap R1 (manual workout labels) and R4 (sleep page depth) ([ROADMAP](ROADMAP.md)). From 2026-12-08, review recovery and readiness against how you feel.
 
 ## Commands
-`npm run dev` · `npm run sync [-- --days N]` · `npm run probe:google` · `npm run verify:google [-- N] [--show-values]` · `npm run check:analytics` · `npm run configure` · `npm test` · `npm run lint` · `npm run test:e2e` (needs `npm run db:seed-demo`; stop the dev server first) · `npm run backup`
+`npm run service -- status|deploy|restart|logs|install` · `npm run configure [-- tailscale|status]` · `npm run data -- backup|list|verify|restore|export|delete-all` · `npm run sync` · `npm run check:analytics` · `npm run verify:google [-- N] [--show-values]` · `npm run dev` (port 3001) · `npm test` · `npm run lint` · `npm run test:e2e` (needs `npm run db:seed-demo`)
 
 ## Documentation
-[README](../README.md) (run, commands) · [Architecture](ARCHITECTURE.md) · [API research](API_RESEARCH.md) · [Metric inventory](METRIC_INVENTORY.md) · [Calculations](CALCULATIONS.md) · [Data model](DATA_MODEL.md) · [Design system](DESIGN_SYSTEM.md) · [Security](SECURITY.md) · [Testing](TESTING.md) · [Google setup](SETUP_GOOGLE.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [ADRs](adr/)
+[README](../README.md) · [Deployment & iPhone](DEPLOYMENT.md) · [Feature audit](FEATURE_AUDIT.md) · [Architecture](ARCHITECTURE.md) · [API research](API_RESEARCH.md) · [Metric inventory](METRIC_INVENTORY.md) · [Calculations](CALCULATIONS.md) · [Data model](DATA_MODEL.md) · [Design system](DESIGN_SYSTEM.md) · [Security](SECURITY.md) · [Testing](TESTING.md) · [Google setup](SETUP_GOOGLE.md) · [Roadmap](ROADMAP.md) · [Changelog](CHANGELOG.md) · [ADRs](adr/)
