@@ -1,45 +1,40 @@
 # Project status
 
-_Last updated: 2026-11-26 — milestone “Phase 0 + foundation” (commit after this file)._
+_Last updated: 2026-11-26 — Phase 1 (real-data integration) in progress._
 
 ## Verification levels
 **Implemented** → **tested with fictional data** → **tested against real provider data** → **verified end-to-end**.
 
 | Area | Level | Notes |
 |---|---|---|
-| Research & docs | done | API_RESEARCH, METRIC_INVENTORY, CALCULATIONS, ARCHITECTURE… |
-| Google OAuth (PKCE, refresh, re-auth detection) | tested (fictional/mocked) | real consent never run |
-| Google Health client + 24 stream definitions | tested (mocked) | **filter syntax & field names not yet confirmed on real data** |
-| Hevy client + events-based incremental sync | tested (mocked) | shapes from official OpenAPI |
-| Raw storage, normalization, idempotent upserts, window replacement | tested (in-memory SQLite) | |
-| Workout ↔ HR matching, zones, recovery, volume, e1RM | tested (fictional) | |
-| Calculations library (HR stats, zones, TRIMP, EWMA, e1RM, volume, sleep efficiency, baselines) | tested (unit) | |
-| App auth (password, session, proxy, CSRF origin check) | E2E tested | |
-| UI: Today, Training, Workout detail, Settings, Login | E2E + screenshots (demo data), axe AA clean | |
-| Production build | passes | |
-| Real Fitbit Air data | **blocked** | needs your Google Cloud credentials |
-| Real Hevy data | **blocked** | needs your Hevy Pro API key |
-| Fitbit HR inside Hevy | **unverified** | manual test in SETUP_GOOGLE §7 |
-| Scheduled sync, export, delete-all, settings UI, Sleep/Health/Trends tabs | not implemented | ROADMAP |
+| Branding: Baseline (name, metadata, manifest, icons, login, docs) | done | light-touch; visual overhaul after real data |
+| Runtime data outside OneDrive (`%LOCALAPPDATA%\Baseline`) | **verified on this PC** | DB created there; guard refuses OneDrive/repo paths (unit-tested); ACL = user + SYSTEM only (checked with icacls) |
+| Secret entry (`npm run configure`, hidden prompts / JSON import) | implemented, init path verified | interactive prompts are exercised by the owner |
+| Local server | **running**, bound to 127.0.0.1 | Tailscale/LAN not reachable (verified) |
+| Dev logging hardened | verified | request URLs (OAuth codes) no longer logged to `.next/dev/logs` |
+| Google OAuth | tested (mocked) | real consent pending (Plan A Personal mode / Plan B Testing) |
+| Google Health client + 24 streams | tested (mocked) | filter syntax & fields unconfirmed until probe |
+| Hevy client + events sync | tested (mocked) | |
+| Workout ↔ HR matching, calculations | tested (fictional) | |
+| UI | E2E + axe on demo data | |
+| Real Fitbit Air data | **pending owner steps** | SETUP_GOOGLE.md 1–9 |
+| Real Hevy data | **pending owner step** | SETUP_GOOGLE.md 10 |
+| Fitbit HR inside Hevy | unverified | manual test; no code involved |
 
 ## Known limitations / open questions
-- Actual Fitbit Air HR sampling interval: unknown (the probe measures it).
-- Whether `googlehealth.*` scopes can be used “In production” unverified (7-day token expiry otherwise).
-- Fitbit Sleep Score and Daily Readiness are **not available** via the API. Proprietary scores (WHOOP, Bevel, Garmin) cannot be reproduced exactly.
-- Hevy has no HR/calorie fields and no webhooks. Hevy rate limits are undocumented.
-- Sync runs only while the server runs (manual/CLI for now). No hosting decided yet.
-- Repo is inside OneDrive: the DB would be uploaded unless `DATABASE_PATH` points outside it (SECURITY.md).
-- Step goal is hard-coded (10 000) until the settings UI exists.
-
-## Blockers
-1. Google Cloud OAuth client + linked Google Health account (you).
-2. Hevy Pro API key (you).
-3. Hosting decision for always-on sync / iPhone access (you; options in ADR-0001).
+- Restricted `googlehealth.*` scopes: does Personal mode accept them? (test). Otherwise 7-day reconnect.
+- Fitbit Air HR sampling interval, history depth and which types are populated: unknown until probe.
+- Fitbit Sleep Score / Daily Readiness are not in the API. Hevy has no HR fields or webhooks.
+- `.next/` and `node_modules/` still sync to OneDrive (artefacts only).
+- Sync is manual/CLI; no scheduler yet. Step goal hard-coded.
 
 ## Commands
-`npm run setup -- "<pw>"` · `npm run dev` · `npm test` · `npm run lint` · `npm run db:seed-demo` · `DEMO_MODE=1 npm run dev` · `npm run test:e2e` · `npm run sync` · `npm run probe:google` · `npm run probe:hevy`
+`npm run configure [-- status|password|google]` · `npm run dev` · `npm test` · `npm run lint` · `npm run test:e2e` · `npm run sync` · `npm run probe:google` · `npm run probe:hevy` · `npm run backup`
+
+## Branches
+- `main`: initial commit only. `phase-0-foundation`: all work so far (pushed, not merged until real data is verified).
 
 ## Next steps
-1. You: SETUP_GOOGLE.md steps 1–13 + the Hevy BLE test.
-2. Me: run probes, fix any filter/field mismatches, verify HR resolution & workout matching on real workouts, record findings here.
-3. Then Phase 2b (scheduled sync, export/delete, settings) and Phase 4 (Sleep/Health tabs).
+1. Owner: SETUP_GOOGLE.md steps one by one (the assistant guides).
+2. Run probes → fix filter/field mismatches → small sync (2 days) → verify → full backfill.
+3. Hevy import → match real workouts with HR → verify avg/max/zones → update METRIC_INVENTORY with observed results.

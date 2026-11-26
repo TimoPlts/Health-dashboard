@@ -8,6 +8,8 @@
 | `npx next build` | production build |
 | `npm run probe:google` / `probe:hevy` | **real-data** structure probes (manual, need credentials) |
 
+`tests/unit/runtime-home.test.ts` covers the storage-safety guard (OneDrive/repo rejection, home resolution, config parsing). E2E runs with an isolated `BASELINE_HOME` in the temp folder, so it never reads your real config.
+
 ## Coverage map
 - `tests/unit/metrics.test.ts`: HR stats (weighting, gaps, nulls, window bounds), zones (Karvonen, bands), TRIMP closed form, EWMA gaps, e1RM ranges, volume, muscle sets, sleep efficiency, stage minutes, baselines (min days, ln transform).
 - `tests/unit/google-normalize.test.ts`: parsers (durations, int64 strings, Date), every stream has a normalizer, HR/steps/weight/daily/sleep/exercise mapping, invalid-point skipping, AIP-160 filters, window chunking.
@@ -15,5 +17,5 @@
 - `tests/integration/sync.test.ts`: Google backfill + pagination + raw pages + **idempotent re-run**, sleep window replacement (deletions), partial failure vs. auth abort, 401 → refresh → retry; token exchange with PKCE, `invalid_grant` → re-auth; Hevy backfill, update + delete events, replay without duplicates.
 
 ## Rules
-- Fixtures are fictional and shaped after the official schemas. Never commit real responses. `probe-output/` is git-ignored.
+- Fixtures are fictional and shaped after the official schemas. Never commit real responses. Probe reports are written to `%LOCALAPPDATA%\Baseline\probe-output` (outside the repo).
 - A UI change is done only after looking at the screenshots (both themes, phone width).

@@ -1,25 +1,50 @@
 # Security & privacy
 
-## Threat model (single user)
-Protect health data and provider credentials from: other people on the network/internet, accidental commits, logs, and third-party services.
+## Where sensitive data lives
+Everything sensitive is in a private runtime folder **outside the repository and outside OneDrive**:
 
-## Controls in place
+| Platform | Default | Override |
+|---|---|---|
+| Windows | `%LOCALAPPDATA%\Baseline` (e.g. `C:\Users\<you>\AppData\Local\Baseline`) | `BASELINE_HOME` |
+| macOS / Linux (future server) | `~/Library/Application Support/Baseline` / `$XDG_DATA_HOME/baseline` | `BASELINE_HOME` |
+
+```
+Baseline\
+  config.env      secrets: APP_PASSWORD_HASH, SESSION_SECRET, ENCRYPTION_KEY, GOOGLE_CLIENT_ID/SECRET
+  data\baseline.db   health database (OAuth tokens + Hevy key inside, AES-256-GCM encrypted)
+  backups\        `npm run backup`
+  exports\        personal exports (planned)
+  probe-output\   real-data structure reports
+  logs\           reserved; the app writes no log files today
+```
+
+**Enforced, not just documented:** `assertSafeLocation()` (`src/server/runtime-home.ts`) refuses to open the database or write config, backups or probe reports inside a OneDrive folder (detected from `%OneDrive%`, `%OneDriveCommercial%`, `%OneDriveConsumer%` and by path name) or inside the repository. Unit-tested.
+
+**Folder permissions:** `npm run configure` removes inherited ACLs and grants only your user + SYSTEM. This was necessary: on this PC `%LOCALAPPDATA%` grants read access to a `CodexSandboxUsers` group. Verify with `icacls %LOCALAPPDATA%\Baseline`.
+
+**`.env.local` is no longer used.** In a OneDrive-synced repo it would upload secrets to the cloud. Next.js still auto-loads repo `.env*` files, so the app warns at startup if any of them contains a secret key. Configuration precedence: real environment variables → `config.env`.
+
+**Entering secrets:** `npm run configure` uses hidden prompts (no echo, not in shell history, never in chat). The Google client can also be imported from the downloaded `client_secret_*.json`, which is then deleted. The Hevy key is entered in the app's password field and goes straight into the encrypted DB.
+
+## Other controls
 | Control | Implementation |
 |---|---|
-| App login | scrypt password hash (`APP_PASSWORD_HASH`), HMAC-SHA256 signed session cookie (30 d, httpOnly, SameSite=Lax, Secure on HTTPS). Brute-force brake: 10 failures / 15 min. |
-| Route protection | `src/proxy.ts` blocks every page/API without a session. Route handlers re-check (`guard.ts`). Mutations require same-origin. |
-| Provider secrets | Google client secret only in server env. OAuth tokens & Hevy key **AES-256-GCM encrypted** in SQLite (`ENCRYPTION_KEY`). Never sent to the browser. |
-| OAuth | Authorization Code + **PKCE (S256)** + `state`. Transaction kept in an encrypted, 10-min, path-scoped cookie. Read-only scopes. Disconnect revokes at Google. |
-| Logs | Sync errors are sanitized (`describeError`, `redactUrl`). No tokens, query secrets or health values are logged. Probe scripts print structure only. |
-| Headers | `nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, restrictive `Permissions-Policy`. `robots: noindex`. |
-| Repository | `.gitignore` excludes `.env*`, `data/*`, `*.db`, `probe-output/`, screenshots. Tests use fictional fixtures only. |
-| Demo data | Separate `data/demo.db`. `DEMO_MODE` throws in production. Permanent banner. |
-| Third parties | No analytics, no AI services, no CDN scripts. Fonts are self-hosted by `next/font` at build time. |
+| App login | scrypt password hash, HMAC-SHA256 signed session cookie (30 d, httpOnly, SameSite=Lax, Secure on HTTPS), 10 failures / 15 min brake |
+| Network exposure | dev/prod servers bind to **127.0.0.1** only. Remote access later through Tailscale HTTPS (`tailscale serve`), not by opening ports |
+| Route protection | `src/proxy.ts` on every page/API. Handlers re-check. Mutations require same origin |
+| OAuth | Authorization Code + PKCE (S256) + state in an encrypted 10-min cookie. Read-only scopes. Disconnect revokes at Google |
+| Logs | Next dev request logging and browser-log forwarding disabled (request URLs can contain OAuth codes; `.next/dev/logs` sits in the synced repo). Sync errors sanitized. Probes print structure only |
+| Repo | `.gitignore` excludes `.env*`, `data/*`, `*.db`, `probe-output/`, `screenshots/`. Fixtures are fictional. The GitHub repo is **public**, so audit before every push |
+| Third parties | no analytics, no AI services, no external scripts |
 
-## Your responsibilities
-- Keep `.env.local` private and backed up (password manager). Rotating `ENCRYPTION_KEY` requires reconnecting providers.
-- **Remote access must be HTTPS.** Recommended: Tailscale (private tailnet + `tailscale serve` HTTPS) rather than exposing a port to the internet.
-- **OneDrive warning:** this repo lives in a OneDrive-synced folder. `data/health.db` is git-ignored but **will still be uploaded to OneDrive** (school account). Set `DATABASE_PATH` to a non-synced folder, e.g. `C:/Users/<you>/AppData/Local/pulse/health.db`. OneDrive syncing `node_modules` is also slow, so consider moving the repo to e.g. `C:\dev\`.
+## Residual risks / accepted
+- `.next/` and `node_modules/` sync to OneDrive (build artefacts only; no health data or secrets, verified). Moving the repo out of OneDrive would remove this. Optional.
+- Demo database `data/demo.db` is fictional and may live in the repo (git-ignored).
+- Backups require `ENCRYPTION_KEY` to decrypt stored tokens: keep a copy of `config.env` in your password manager, not in OneDrive.
 
-## Data export & deletion
-Planned (ROADMAP Phase 2b): JSON/CSV export endpoint and “delete all data” (drops all rows + raw pages, revokes tokens). Until then: stop the app and delete `data/health.db*`, then revoke access at https://myaccount.google.com/permissions and rotate the Hevy API key.
+## Backup / restore / deletion
+- Backup: `npm run backup` → `Baseline\backups\`. Restore: stop the app, copy the file to `Baseline\data\baseline.db`.
+- Delete everything: stop the app, delete `%LOCALAPPDATA%\Baseline`, revoke at https://myaccount.google.com/permissions, rotate the Hevy key. In-app export/delete is planned.
+
+## Future always-on server
+Set `BASELINE_HOME` (e.g. `/var/lib/baseline`) or inject the same keys as real environment variables. Nothing else changes.

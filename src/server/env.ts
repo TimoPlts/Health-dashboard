@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { assertSafeLocation, loadRuntimeConfig, runtimePaths, secretsInRepoEnvFiles } from "./runtime-home";
 
 /**
- * Server-side configuration. Validated lazily so that `next build` and unit tests
- * do not require secrets. Never import this from client components.
+ * Server-side configuration.
+ * Sources, highest priority first: real environment variables → <BASELINE_HOME>/config.env.
+ * Secrets never live in the repository (see docs/SECURITY.md). Never import this from client components.
  */
 const schema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -11,7 +13,7 @@ const schema = z.object({
   ENCRYPTION_KEY: z.string().optional(),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
   HOME_TIME_ZONE: z.string().default("Europe/Brussels"),
-  DATABASE_PATH: z.string().default("./data/health.db"),
+  DATABASE_PATH: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   HEVY_API_KEY: z.string().optional(),
@@ -19,14 +21,16 @@ const schema = z.object({
   BACKFILL_DAYS: z.coerce.number().int().positive().max(3650).default(365),
 });
 
-export type Env = z.infer<typeof schema>;
+export type Env = Omit<z.infer<typeof schema>, "DATABASE_PATH"> & { DATABASE_PATH: string };
 
 let cached: Env | undefined;
 
 export function env(): Env {
   if (cached) return cached;
+  loadRuntimeConfig();
   const parsed = schema.parse(process.env);
   const empty = (v?: string) => (v && v.trim() !== "" ? v : undefined);
+  const demo = empty(parsed.DEMO_MODE);
   const e: Env = {
     ...parsed,
     APP_PASSWORD_HASH: empty(parsed.APP_PASSWORD_HASH),
@@ -35,10 +39,19 @@ export function env(): Env {
     GOOGLE_CLIENT_ID: empty(parsed.GOOGLE_CLIENT_ID),
     GOOGLE_CLIENT_SECRET: empty(parsed.GOOGLE_CLIENT_SECRET),
     HEVY_API_KEY: empty(parsed.HEVY_API_KEY),
-    DEMO_MODE: empty(parsed.DEMO_MODE),
+    DEMO_MODE: demo,
+    DATABASE_PATH: empty(parsed.DATABASE_PATH) ?? runtimePaths().database,
   };
-  if (e.NODE_ENV === "production" && e.DEMO_MODE) {
+  if (e.NODE_ENV === "production" && demo) {
     throw new Error("DEMO_MODE is not allowed in production. Fictional data must never be served as real data.");
+  }
+  if (!demo) {
+    // The real health database must never sit in OneDrive or the repo. (Demo DB is fictional.)
+    assertSafeLocation(e.DATABASE_PATH);
+    const leaked = secretsInRepoEnvFiles();
+    if (leaked.length) {
+      console.warn(`[baseline] Secrets found in repo-local env files (${leaked.join(", ")}). Move them with \`npm run configure\` and delete the file.`);
+    }
   }
   cached = e;
   return e;
@@ -50,6 +63,6 @@ export function isDemoMode(): boolean {
 
 export function requireSecret(name: "SESSION_SECRET" | "ENCRYPTION_KEY" | "APP_PASSWORD_HASH"): string {
   const v = env()[name];
-  if (!v) throw new Error(`${name} is not configured. See .env.example.`);
+  if (!v) throw new Error(`${name} is not configured. Run \`npm run configure\`.`);
   return v;
 }

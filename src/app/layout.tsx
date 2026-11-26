@@ -7,10 +7,10 @@ import { isDemoMode } from "@/server/env";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Pulse",
-  description: "Private health and training dashboard",
-  applicationName: "Pulse",
-  appleWebApp: { capable: true, title: "Pulse", statusBarStyle: "black-translucent" },
+  title: "Baseline",
+  description: "Your personal health and training baseline",
+  applicationName: "Baseline",
+  appleWebApp: { capable: true, title: "Baseline", statusBarStyle: "black-translucent" },
   robots: { index: false, follow: false },
   formatDetection: { telephone: false },
 };

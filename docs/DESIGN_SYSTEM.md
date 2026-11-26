@@ -1,6 +1,9 @@
-# Design system — “Pulse”
+# Design system — Baseline
 
-Tokens: `src/app/globals.css`. Primitives: `src/ui/primitives.tsx`. Charts: `src/ui/charts/`. Icons: `src/ui/icons.tsx` (original 24 px line set, no emoji).
+Tokens: `src/app/globals.css`. Primitives: `src/ui/primitives.tsx`. Charts: `src/ui/charts/`. Icons: `src/ui/icons.tsx` (original 24 px line set, no emoji). Brand: `src/ui/Logo.tsx`.
+
+## Brand
+**Baseline**: health measured against *your own* normal. Mark: a flat line with one gentle rise that returns to it (deviation and recovery). Wordmark in SF Pro Display semibold, −0.025em. The icon is the mark in coral on a graphite tile with a soft top light. Understated on purpose; a full visual overhaul follows once real data is in.
 
 ## Principles
 1. **Numbers first.** One hero number per card, large and tabular. Units are small and secondary. Missing values are “—”, never 0.

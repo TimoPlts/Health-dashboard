@@ -27,6 +27,8 @@ const g = globalThis as unknown as { __healthDb?: DB };
 /** Process-wide singleton (survives Next.js dev hot reloads). */
 export function db(): DB {
   if (!g.__healthDb) {
+    // Demo DB holds only fictional data and may live in the repo (git-ignored). The real DB path is
+    // validated in env() to be outside OneDrive and the repository.
     const file = isDemoMode() ? "./data/demo.db" : env().DATABASE_PATH;
     g.__healthDb = openDatabase(file);
   }

@@ -30,7 +30,6 @@ Schema source of truth: `src/server/db/schema.ts`. Migrations: `src/server/db/mi
 HR bpm · HRV ms · SpO₂ % · temperature °C · distance m (Google mm → m) · weight kg (Google g → kg) · height m · energy kcal · durations s (minutes where named `min`) · respiratory rate breaths/min.
 
 ## Backup & restore
-- Stop the app, copy `data/health.db` (plus `-wal`/`-shm` if present) **and** keep `.env.local` (`ENCRYPTION_KEY` is needed to decrypt stored tokens). Without the key, data stays readable but providers must be reconnected.
-- Online backup: `sqlite3 data/health.db ".backup backup.db"`.
-- Restore: put the file back at `DATABASE_PATH` and start the app. Migrations run automatically.
-- Do not keep the DB in a synced cloud folder you share. See SECURITY.md about OneDrive.
+- Location: `%LOCALAPPDATA%\Baseline\data\baseline.db` (see SECURITY.md); the app refuses OneDrive/repo paths.
+- Backup: `npm run backup` → `%LOCALAPPDATA%\Baseline\backups\` (consistent online backup). Keep `ENCRYPTION_KEY` (in `config.env`) in a password manager: it is needed to decrypt stored tokens. Without it the data stays readable, but providers must be reconnected.
+- Restore: stop the app, copy the backup to `DATABASE_PATH`, start. Migrations run automatically.

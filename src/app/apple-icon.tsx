@@ -3,13 +3,14 @@ import { ImageResponse } from "next/og";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-/** App icon: a single pulse stroke on deep glass. */
+/** App icon: the Baseline mark on a deep graphite tile with a soft top light. */
 export default function Icon() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(circle at 30% 20%, #2a2d3a 0%, #07080b 70%)" }}>
-        <svg width="112" height="112" viewBox="0 0 24 24" fill="none" stroke="#ff6a55" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 12h4l2-5 4 10 2-5h6" />
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(120% 90% at 30% 0%, #2b2e38 0%, #0c0d11 62%, #07080a 100%)" }}>
+        <svg width="120" height="120" viewBox="0 0 24 24" fill="none">
+          <path d="M2.5 15.5h19" stroke="#ffffff" strokeOpacity="0.22" strokeWidth="1.4" strokeLinecap="round" />
+          <path d="M2.5 15.5H8c1.4 0 1.9-7 4-7s2.6 7 4 7h5.5" stroke="#ff6a55" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
     ),

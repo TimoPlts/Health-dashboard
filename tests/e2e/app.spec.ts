@@ -30,6 +30,8 @@ test("wrong password is rejected", async ({ page }) => {
   await page.getByLabel("Password").fill("nope");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Incorrect password")).toBeVisible();
+  await expect(page.getByText("Baseline")).toBeVisible();
+  await shot(page, "login");
 });
 
 test("today, training, workout detail and settings render with demo data", async ({ page }) => {

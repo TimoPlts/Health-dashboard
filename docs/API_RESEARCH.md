@@ -55,7 +55,8 @@ Base: `https://health.googleapis.com/v4`
 - Scopes used (read-only): `googlehealth.activity_and_fitness.readonly`, `googlehealth.health_metrics_and_measurements.readonly`, `googlehealth.sleep.readonly`, `googlehealth.profile.readonly`.
 - **Consent screen “Testing” status → refresh tokens expire after 7 days.** “In production” → refresh tokens persist (until revoked / 6 months unused).
 - Unverified apps: capped at 100 users. >100 users requires a third-party security review. A single-user app stays far below.
-- Sensitive/restricted classification of the `googlehealth.*` scopes: **not stated** in docs read **[unverified]**. Plan: publish the consent screen to *In production* while unverified and accept the “unverified app” warning. If Google blocks that for these scopes, fall back to Testing mode and re-consent weekly (app detects `invalid_grant` and shows “Reconnect”).
+- **Revalidated 2026-11-26:** Google lists the `googlehealth.*` scopes as **restricted** ([restricted scopes](https://support.google.com/cloud/answer/13464325)). External apps in production must complete verification before restricted scopes are granted. Testing-mode tokens for these scopes expire after 7 days; the only exception covers basic profile scopes ([audience](https://support.google.com/cloud/answer/15549945)).
+- **Personal mode** (user type "Personal", [docs](https://support.google.com/cloud/answer/15544987)): only the creator account can authorize; *"do not require OAuth app verification, are not subject to the OAuth user cap or 7-day test user token expiration, and do not display the unverified app screen."* The choice is permanent per project. Whether restricted Health scopes are allowed in Personal mode is **not documented** → **Plan A, to be tested**. Plan B: External + Testing with weekly reconnect.
 - No allow-list / application form found **[doc]**.
 
 ### 1.6 Quotas **[doc]** ([rate limits](https://developers.google.com/health/rate-limits))

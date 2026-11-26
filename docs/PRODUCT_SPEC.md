@@ -1,6 +1,6 @@
 # Product spec
 
-**Pulse** is a private, single-user health & training app that combines Fitbit Air data (Google Health API) with Hevy strength workouts in a premium, iPhone-first interface. It has no AI coaching, social features, ads or subscriptions.
+**Baseline** is a private, single-user health & training app that combines Fitbit Air data (Google Health API) with Hevy strength workouts in a premium, iPhone-first interface. It has no AI coaching, social features, ads or subscriptions.
 
 ## Goals
 1. Replace day-to-day use of Google Health / Bevel for *looking at* data. The Google Health app keeps running in the background for device sync.

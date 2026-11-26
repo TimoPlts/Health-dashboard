@@ -51,7 +51,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {google?.lastError && <p className="mt-2 text-[13px] text-danger">{google.lastError}</p>}
           <div className="mt-3 flex flex-wrap gap-2">
             {!googleConfigured ? (
-              <p className="text-[13px] text-ink-2">Add <code className="font-mono text-[12px]">GOOGLE_CLIENT_ID</code> and <code className="font-mono text-[12px]">GOOGLE_CLIENT_SECRET</code> to <code className="font-mono text-[12px]">.env.local</code> (see docs/SETUP_GOOGLE.md).</p>
+              <p className="text-[13px] text-ink-2">Google OAuth client not configured yet. Run <code className="font-mono text-[12px]">npm run configure -- google</code> in a terminal (see docs/SETUP_GOOGLE.md), then restart the app.</p>
             ) : google?.status === "connected" ? (
               <DisconnectButton provider="google" />
             ) : (
@@ -98,7 +98,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <SectionLabel>Privacy</SectionLabel>
       <Glass className="p-5 text-[13px] leading-relaxed text-ink-2">
-        Data is stored only in your local database ({isDemoMode() ? "data/demo.db" : e.DATABASE_PATH}). Provider credentials are encrypted at rest (AES-256-GCM).
+        Data is stored only in your private local database ({isDemoMode() ? "data/demo.db (fictional)" : e.DATABASE_PATH}), outside OneDrive and the repository. Provider credentials are encrypted at rest (AES-256-GCM).
         Nothing is sent to analytics or AI services. Export and full deletion are planned for a later milestone (see docs/ROADMAP.md).
         <div className="mt-4"><LogoutButton /></div>
       </Glass>

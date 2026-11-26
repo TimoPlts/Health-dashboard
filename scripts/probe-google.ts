@@ -4,14 +4,16 @@
  * Requires: Google connected via the web app (Settings → Connect Google Health).
  * For every configured stream it fetches the last N days (first page only) and reports STRUCTURE ONLY:
  * HTTP status, point count, JSON field paths present, data sources, and — for heart rate — the observed
- * sampling interval. No health values are printed. A JSON report is written to probe-output/ (gitignored).
+ * sampling interval. No health values are printed. A JSON report is written to probe-output/ (outside the repo, in your Baseline folder).
  *
  *   npm run probe:google            # last 3 days
  *   npm run probe:google -- 14      # last 14 days
  */
 import "./_env";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { env } from "../src/server/env";
+import { ensureSafeDir, runtimePaths } from "../src/server/runtime-home";
+import path from "node:path";
 import { openDatabase } from "../src/server/db/client";
 import { getGoogleAccessToken } from "../src/server/connections";
 import { GoogleHealthClient } from "../src/server/providers/google/client";
@@ -73,7 +75,7 @@ for (const s of GOOGLE_STREAMS) {
   report[s.dataType] = entry;
 }
 
-mkdirSync("probe-output", { recursive: true });
-const file = `probe-output/google-${new Date().toISOString().slice(0, 10)}.json`;
+const outDir = ensureSafeDir(runtimePaths().probeOutput);
+const file = path.join(outDir, `google-${new Date().toISOString().slice(0, 10)}.json`);
 writeFileSync(file, JSON.stringify(report, null, 2));
 console.log(`\nStructure report written to ${file} (contains no health values).`);

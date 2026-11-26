@@ -1,6 +1,4 @@
-import { existsSync } from "node:fs";
+import { loadRuntimeConfig } from "../src/server/runtime-home";
 
-/** Load .env.local / .env for CLI scripts (Next.js does this itself for the web app). */
-for (const f of [".env.local", ".env"]) {
-  if (existsSync(f)) process.loadEnvFile(f);
-}
+/** CLI scripts read the same runtime config as the web app: <BASELINE_HOME>/config.env. */
+loadRuntimeConfig();

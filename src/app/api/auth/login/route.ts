@@ -9,7 +9,7 @@ const failures: number[] = [];
 export async function POST(req: Request) {
   const e = env();
   if (!e.APP_PASSWORD_HASH || !e.SESSION_SECRET) {
-    return NextResponse.json({ error: "App password is not configured. Run `npm run setup` (see README)." }, { status: 503 });
+    return NextResponse.json({ error: "App password is not configured. Run `npm run configure` (see README)." }, { status: 503 });
   }
   const now = Date.now();
   while (failures.length && failures[0]! < now - 15 * 60_000) failures.shift();

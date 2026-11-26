@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { hashPassword } from "./src/server/crypto";
+import os from "node:os";
+import path from "node:path";
 
 /**
  * E2E runs the app in DEMO_MODE against the fictional ./data/demo.db (run `npm run db:seed-demo` first).
@@ -28,6 +30,8 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       DEMO_MODE: "1",
+      // Isolated runtime home so E2E never reads your real config.env.
+      BASELINE_HOME: path.join(os.tmpdir(), "baseline-e2e"),
       APP_PASSWORD_HASH: hashPassword(E2E_PASSWORD),
       SESSION_SECRET: randomBytes(32).toString("base64"),
       ENCRYPTION_KEY: randomBytes(32).toString("base64"),

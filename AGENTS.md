@@ -15,6 +15,8 @@ Next.js 16 (App Router; **`src/proxy.ts` replaces middleware**) · React 19 · T
 
 ## Rules
 - Never commit secrets, `.env*`, databases, `probe-output/`, or real health data. Fixtures must be fictional.
+- Sensitive runtime data lives ONLY in `BASELINE_HOME` (`%LOCALAPPDATA%\Baseline`): config.env, DB, backups, exports, probe output. Use `runtimePaths()`/`ensureSafeDir()` from `src/server/runtime-home.ts`; never write such files into the repo (it is in OneDrive and the GitHub repo is public).
+- Never ask the owner to paste secrets into chat or pass them as CLI arguments; use `npm run configure` (hidden prompts) or the in-app Hevy key field.
 - Never fabricate measurements. Missing → `null`/“—”, never 0. Label estimates. Demo data only via `DEMO_MODE` + `data/demo.db`.
 - New calculated metric = function + version string + doc entry (formula, reference, inputs, missing-data rule, units, limitations) + tests.
 - Do not claim provider behaviour is verified unless tested against real data. Update `PROJECT_STATUS.md` and `CHANGELOG.md` at each milestone.

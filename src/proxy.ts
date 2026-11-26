@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionValue } from "./server/session";
+import { loadRuntimeConfig } from "./server/runtime-home";
+
+// Proxy runs on the Node.js runtime (Next 16 default), so it can read <BASELINE_HOME>/config.env.
+loadRuntimeConfig();
 
 /**
  * Every page and API route requires a valid session, except the login page/endpoint and static assets.

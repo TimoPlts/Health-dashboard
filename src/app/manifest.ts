@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Pulse",
-    short_name: "Pulse",
-    description: "Private health and training dashboard",
+    name: "Baseline",
+    short_name: "Baseline",
+    description: "Your personal health and training baseline",
     start_url: "/",
     display: "standalone",
     background_color: "#050608",

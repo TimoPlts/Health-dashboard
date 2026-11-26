@@ -3,8 +3,10 @@
  *   npm run probe:hevy
  */
 import "./_env";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { env } from "../src/server/env";
+import { ensureSafeDir, runtimePaths } from "../src/server/runtime-home";
+import path from "node:path";
 import { openDatabase } from "../src/server/db/client";
 import { getHevyApiKey } from "../src/server/connections";
 import { HevyClient, type HevyEvent } from "../src/server/providers/hevy/client";
@@ -41,5 +43,5 @@ const tpl = (await c.exerciseTemplates().next()).value;
 report.templates = { pages: tpl?.pageCount, fields: Object.keys(tpl?.items[0] ?? {}) };
 console.log(`templates: ${tpl?.pageCount} pages`);
 
-mkdirSync("probe-output", { recursive: true });
-writeFileSync(`probe-output/hevy-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(report, null, 2));
+const outDir = ensureSafeDir(runtimePaths().probeOutput);
+writeFileSync(path.join(outDir, `hevy-${new Date().toISOString().slice(0, 10)}.json`), JSON.stringify(report, null, 2));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Icon } from "@/ui/icons";
+import { Wordmark } from "@/ui/Logo";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -17,9 +17,9 @@ export default function LoginPage() {
           if (r.ok) window.location.href = "/";
           else { setError((await r.json().catch(() => ({}))).error ?? "Login failed"); setBusy(false); }
         }}>
-        <div className="mb-6 flex items-center gap-2.5">
-          <span className="grid size-10 place-items-center rounded-xl bg-[color-mix(in_oklab,var(--heart)_16%,transparent)] text-heart"><Icon name="pulse" /></span>
-          <h1 className="font-display text-[24px] font-bold tracking-[-0.02em]">Pulse</h1>
+        <div className="mb-7">
+          <h1 className="text-ink"><Wordmark size={26} /></h1>
+          <p className="mt-2 text-[14px] text-ink-2">Your health, measured against you.</p>
         </div>
         <label htmlFor="password" className="text-[13px] font-medium text-ink-2">Password</label>
         <input id="password" name="password" type="password" autoComplete="current-password" required autoFocus
