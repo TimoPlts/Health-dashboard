@@ -1,45 +1,43 @@
 # Project status
 
-_Last updated: 2026-11-26 — Phase 1: Google data foundation **verified against real data**; Hevy next._
+_Last updated: 2026-11-26. Phases 1–5 done: verified Google data, analytics engine, redesigned app, workouts without Hevy Pro, automatic sync._
 
 ## Verification levels
 **Implemented** → **tested with fictional data** → **tested against real provider data** → **verified end-to-end**.
 
 | Area | Level | Notes |
 |---|---|---|
-| Branding: Baseline (name, metadata, manifest, icons, login, docs) | done | light-touch; visual overhaul after real data |
-| Runtime data outside OneDrive (`%LOCALAPPDATA%\Baseline`) | **verified on this PC** | DB created there; guard refuses OneDrive/repo paths (unit-tested); ACL = user + SYSTEM only (checked with icacls) |
-| Secret entry (`npm run configure`, hidden prompts / JSON import) | implemented, init path verified | interactive prompts are exercised by the owner |
-| Local server | **running**, bound to 127.0.0.1 | Tailscale/LAN not reachable (verified) |
-| Dev logging hardened | verified | request URLs (OAuth codes) no longer logged to `.next/dev/logs` |
-| Google OAuth | **verified end-to-end** | Personal mode accepted the restricted `googlehealth.*` scopes; identity call OK |
-| Google Health client + 35 streams | **tested against real data** | all 35 return valid responses (27 with data, 8 valid-but-empty); filter syntax, fields, pagination and rollups confirmed. See METRIC_INVENTORY “Observed on the real account” |
-| Hevy client + events sync | tested (mocked) | |
-| Workout ↔ HR matching, calculations | tested (fictional) | |
-| UI | E2E + axe on demo data | |
-| Real Fitbit Air data | **imported, verified** | 365-day backfill done (Air data from 2026-11-24, iPhone steps from 2026-10-25). `npm run verify:google`: HR daily min/avg/max = Google exactly; Σ reconciled activity = Google daily totals; no duplicates/overlaps; sleep stages = summaries; re-sync idempotent |
-| Real Hevy data | **pending owner step** | SETUP_GOOGLE.md 10 |
-| Fitbit HR inside Hevy | unverified | manual test; no code involved |
+| Runtime data outside OneDrive (`%LOCALAPPDATA%\Baseline`) | verified on this PC | ACL = user + SYSTEM |
+| Google OAuth (Personal mode, restricted scopes) | **verified end-to-end** | |
+| Google Health client, 35 streams | **tested against real data** | `npm run probe:google` / `verify:google` |
+| Real Fitbit Air data | **imported, verified** | 365-day backfill. Air data from 2026-11-24, iPhone steps from 2026-10-25 |
+| Derived metrics (TRIMP, zones, worn time) | tested against real data | HRmax = 220 − age, matching Google's zones (verified by ratio check) |
+| Recovery / readiness / baselines | tested (fictional + unit); runs on real data | **calibrating** on real data: needs 14 nights, from ~2026-12-08 |
+| ACWR / training balance | tested (fictional + unit); runs on real data | calibrating: needs 21 tracked days, from ~2026-12-15 |
+| Sleep score / debt / SRI | tested; runs on real data | SRI needs 5 nights |
+| Workouts from Google sessions | **tested against real data** (structure) | 8 sessions → 6 workouts. Fitbit + Hevy (Apple Health) duplicates merged. One < 60 s session flagged |
+| Every page read model on real data | verified (no errors; 4–25 ms) | `npm run check:analytics` (no values printed) |
+| UI | E2E + axe on fictional demo data (iPhone dark/light, desktop) | design reviewed through demo-data screenshots only |
+| Automatic sync | implemented | starts with the server, default every 30 min. Lock file prevents overlap with CLI/Task Scheduler |
+| Hevy direct import | implemented, optional, **not used** (needs Hevy Pro) | nothing depends on it |
+| Fitbit HR inside Hevy (BLE) | unverified | manual test; no code involved |
 
-## Known limitations / open questions
-- History is short: the Air was first worn 2026-11-24; Google holds iPhone step/distance/energy history only from 2026-10-25.
-- Empty for this account (valid responses, no data): basal energy, altitude, VO₂ max (daily/sample/run), body fat, blood glucose, core temperature. Synced anyway so they appear if a source starts writing them.
-- Reconciled activity rows carry no device provenance (Google merges Air + iPhone); verified equal to Google's own daily totals.
-- Every Hevy workout also appears in Google as an Apple Health exercise session (Hevy → Health → Google). Kept with provenance; Fitbit-recorded sessions are preferred for display.
-- Swim-length intervals were detected by the Air (passively measured) — owner to confirm whether they correspond to real swims.
-- `skin-temperature-sensors` is v4beta-only (empty); ECG/IRN need other scopes and hardware; nutrition/hydration need the nutrition scope (not requested).
-- The full 365-day heart-rate backfill takes ~10 min (one request per day, 5 000-sample pages).
-- Fitbit Sleep Score / Daily Readiness are not in the API. Hevy has no HR fields or webhooks.
+## Known limitations
+- History is short: baselines and ratios show "Calibrating n/14" until enough nights exist. No score is guessed.
+- Hevy's Apple Health entries carry only time, type and calories. Exercises, sets, reps and weights need Hevy Pro (API).
+- Empty for this account: basal energy, altitude, VO₂ max, body fat, blood glucose, core temperature (synced; they appear if a source writes them).
+- Reconciled activity rows have no device provenance; their per-day totals equal Google's exactly.
+- Swim-length intervals detected by the Air: the owner should confirm whether they are real.
+- Heart-rate load under-represents strength training (true of any HR method).
 - `.next/` and `node_modules/` still sync to OneDrive (artefacts only).
-- Sync is manual/CLI; no scheduler yet. Step goal hard-coded.
 
 ## Commands
-`npm run configure [-- status|password|google]` · `npm run dev` · `npm test` · `npm run lint` · `npm run test:e2e` · `npm run sync [-- --days N]` · `npm run probe:google [-- N --history]` · `npm run verify:google [-- N]` · `npm run probe:hevy` · `npm run backup`
+`npm run dev` · `npm run sync [-- --days N]` · `npm run probe:google [-- N --history]` · `npm run verify:google [-- N] [--show-values]` · `npm run check:analytics` · `npm run configure` · `npm test` · `npm run lint` · `npm run test:e2e` (needs `npm run db:seed-demo`; stop the dev server first) · `npm run backup`
 
 ## Branches
-- `main`: initial commit only. `phase-0-foundation`: all work so far (pushed, not merged until real data is verified).
+- `main`: initial commit only. `phase-0-foundation`: all work (pushed). Merge when the owner has used the app on real data.
 
 ## Next steps
-1. Owner: compare a few days with the Google Health app — `npm run verify:google -- 3 --show-values` (values stay in your terminal).
-2. Hevy: enter the API key in Settings → `npm run probe:hevy` → import → match real workouts with Fitbit HR → verify avg/max/zones.
-3. Only then: UI overhaul on top of the verified data.
+1. Owner: use the app daily and compare a few days with Google Health (`npm run verify:google -- 3 --show-values`).
+2. When calibration completes (~2026-12-08), review recovery and readiness against how you feel; tune nothing without documenting it.
+3. Phase 6: export + delete-all, manual workout labels, optional Hevy Pro import.

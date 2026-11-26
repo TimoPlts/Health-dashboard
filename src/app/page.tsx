@@ -1,157 +1,178 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { hasAnyData } from "@/server/queries";
+import { ctx, parseDate, todayView } from "@/server/views";
+import { Badge, Calibrating, Delta, Glass, Label, LargeTitle, Page, Row, SectionHeader, Value, cx, toneVar } from "@/ui/kit";
+import { Ring } from "@/ui/charts/Ring";
+import { Spark } from "@/ui/charts/TrendChart";
+import { formatValue } from "@/ui/value-format";
+import { Hypnogram } from "@/ui/charts/Hypnogram";
+import { DateNav } from "@/ui/controls";
+import { Icon } from "@/ui/icons";
+import { fmtDayLong, fmtDuration, fmtNumber, fmtTime } from "@/ui/format";
+import { SyncStatus } from "@/ui/SyncStatus";
 import { db } from "@/server/db/client";
-import { env } from "@/server/env";
-import { getConnection } from "@/server/connections";
-import { getSyncOverview, getToday } from "@/server/queries";
-import { Badge, Glass, MetricLabel, PageTitle, SectionLabel, Stat, cx } from "@/ui/primitives";
-import { Icon, type IconName } from "@/ui/icons";
-import { Hypnogram, StageLegend } from "@/ui/charts/Hypnogram";
-import { Ring, Sparkline } from "@/ui/charts/simple";
-import { fmtDateShort, fmtDayLong, fmtDuration, fmtNumber, fmtRelative, fmtSignedNumber, fmtTime } from "@/ui/format";
-import { SyncButton } from "@/ui/SyncButton";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Today · Baseline" };
 
-const STEP_GOAL = 10_000; // TODO(settings): user-configurable activity goals
+const READINESS_COPY = {
+  ready: { title: "Ready to train", body: "HRV, resting heart rate and load are all within your normal range." },
+  caution: { title: "Train with care", body: "One marker is outside your normal range. Keep intensity moderate." },
+  recover: { title: "Prioritise recovery", body: "Several markers are outside your normal range. An easy day would fit." },
+} as const;
 
-export default function TodayPage() {
-  const d = db();
-  const tz = env().HOME_TIME_ZONE;
-  const today = getToday(d);
-  const sync = getSyncOverview(d);
-  const googleConnected = getConnection(d, "google")?.status === "connected";
-  const lastSync = Math.max(sync.lastSuccess.google ?? 0, sync.lastSuccess.hevy ?? 0) || null;
-  const weekDates = Array.from({ length: 7 }, (_, i) => new Date(Date.parse(`${today.date}T00:00:00Z`) - (6 - i) * 86_400_000).toISOString().slice(0, 10));
-  const { sleep, vitals, activity } = today;
+export default async function Today({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  if (!hasAnyData(db())) redirect("/settings?welcome=1");
+  const v = todayView(parseDate(sp.date, ctx().today));
+  const { day } = v;
+  const rec = day.recovery;
+  const sleep = day.sleepScore;
+  const load = day.strain;
+  const loadRef = Math.max(120, ...(day.acwr.series.slice(-28).map((x) => x.acute ?? 0)).map((a) => a * 2));
+  const ready = day.readiness;
 
   return (
-    <>
-      <PageTitle
-        eyebrow={<span className="flex items-center gap-1.5">{fmtDayLong(today.date)}</span>}
-        title="Today"
-        trailing={
-          <div className="flex flex-col items-end gap-1 pb-1">
-            <SyncButton />
-            <span className="text-[11px] font-medium text-ink-3">Synced {fmtRelative(lastSync)}</span>
-          </div>
-        }
-      />
+    <Page accent="recovery">
+      <LargeTitle eyebrow={fmtDayLong(v.date)} title={v.date === v.today ? "Today" : "Summary"}
+        trailing={<Link href="/settings" transitionTypes={["nav-forward"]} aria-label="Settings" className="glass glass-pill pressable grid size-10 place-items-center text-ink-2"><Icon name="settings" size={20} /></Link>} />
+      <div className="mb-4 flex items-center justify-between gap-2 px-1">
+        <DateNav date={v.date} today={v.today} earliest={v.earliest} />
+        <SyncStatus />
+      </div>
 
-      {!googleConnected && !sleep && vitals.restingHr === null && (
-        <Glass className="mb-4 p-5">
-          <div className="flex items-start gap-3">
-            <span className="mt-0.5 text-heart"><Icon name="link" /></span>
-            <div className="min-w-0">
-              <h2 className="text-[17px] font-semibold">Connect Google Health</h2>
-              <p className="mt-1 text-[14px] leading-snug text-ink-2">Sleep, heart rate and activity from your Fitbit Air appear here after the first sync.</p>
-              <Link href="/settings" className="pressable mt-3 inline-flex rounded-full bg-ink px-4 py-2 text-[14px] font-semibold text-bg">Open connections</Link>
-            </div>
-          </div>
-        </Glass>
-      )}
-
-      {/* Last night ------------------------------------------------------------------------------ */}
-      <Glass className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <MetricLabel icon="sleep" tone="var(--sleep)">Last night</MetricLabel>
-            <div className="mt-1.5">
-              <Stat size="xl" value={sleep?.minutesAsleep != null ? fmtDuration(sleep.minutesAsleep, { compact: true }) : "—"} />
-            </div>
-            <p className="mt-1 text-[13px] text-ink-2 tabular">
-              {sleep ? <>{fmtTime(sleep.startMs, tz)} – {fmtTime(sleep.endMs, tz)} · {fmtDuration(sleep.timeInBedMin, { compact: true })} in bed</> : "No sleep recorded for last night"}
-            </p>
-          </div>
-          {sleep?.efficiency != null && (
-            <Ring value={sleep.efficiency} max={100} color="var(--sleep)" size={76} stroke={8} label={`Sleep efficiency ${Math.round(sleep.efficiency)} percent`}>
-              <div>
-                <div className="text-[18px] font-semibold leading-none tabular">{Math.round(sleep.efficiency)}<span className="text-[11px] text-ink-2">%</span></div>
-                <div className="mt-0.5 text-[10px] font-medium text-ink-3">efficiency</div>
-              </div>
+      {/* Hero: the three numbers that matter */}
+      <Glass thick className="rise px-4 pt-5 pb-4">
+        <div className="grid grid-cols-3 items-start gap-1">
+          <Link href={`/metric/recovery`} transitionTypes={["nav-forward"]} className="pressable flex flex-col items-center gap-2">
+            <Ring value={rec.status === "ok" ? rec.score : null} color={toneVar("recovery")} size={104} stroke={10} label={rec.status === "ok" ? `Recovery ${Math.round(rec.score)}` : "Recovery calibrating"}>
+              {rec.status === "ok" ? <Value value={String(Math.round(rec.score))} size="lg" /> : rec.status === "calibrating"
+                ? <span className="num text-[15px] font-semibold text-ink-3">{Math.max(rec.hrv?.have ?? 0, rec.rhr?.have ?? 0)}/14</span>
+                : <span className="text-[22px] text-ink-4">—</span>}
             </Ring>
+            <span className="text-[13px] font-semibold text-ink-2">Recovery</span>
+          </Link>
+          <Link href={`/sleep${v.date !== v.today ? `?date=${v.date}` : ""}`} transitionTypes={["tab"]} className="pressable flex flex-col items-center gap-2">
+            <Ring value={sleep ? sleep.score : null} color={toneVar("sleep")} size={104} stroke={10} label={sleep ? `Sleep score ${Math.round(sleep.score)}` : "No sleep recorded"}>
+              {sleep ? <Value value={String(Math.round(sleep.score))} size="lg" /> : <span className="text-[22px] text-ink-4">—</span>}
+            </Ring>
+            <span className="text-[13px] font-semibold text-ink-2">Sleep</span>
+          </Link>
+          <Link href={`/metric/strain`} transitionTypes={["nav-forward"]} className="pressable flex flex-col items-center gap-2">
+            <Ring value={load} max={loadRef} color={toneVar("load")} size={104} stroke={10} label={load !== null ? `Cardio load ${Math.round(load)}` : "No heart-rate data"}>
+              {load !== null ? <Value value={String(Math.round(load))} size="lg" /> : <span className="text-[22px] text-ink-4">—</span>}
+            </Ring>
+            <span className="text-[13px] font-semibold text-ink-2">Load</span>
+          </Link>
+        </div>
+
+        <div className="mt-5 border-t border-hairline pt-4">
+          {ready.status === "ok" ? (
+            <div className="flex items-start gap-3">
+              <span className={cx("mt-0.5 size-2.5 shrink-0 rounded-full", ready.level === "ready" ? "bg-ok" : ready.level === "caution" ? "bg-warn" : "bg-danger")} aria-hidden="true" />
+              <div>
+                <p className="text-[16px] font-semibold">{READINESS_COPY[ready.level].title}</p>
+                <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{READINESS_COPY[ready.level].body}</p>
+              </div>
+            </div>
+          ) : ready.status === "calibrating" ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-[15px] font-semibold">Learning your normal</p>
+              <p className="text-[13px] leading-snug text-ink-2">Recovery and readiness compare each night with your own 28-day baseline. They appear after 14 nights of HRV and resting heart rate — no guesses before then.</p>
+              <Calibrating have={ready.have} need={ready.need} what="HRV baseline" compact />
+            </div>
+          ) : (
+            <p className="text-[13px] text-ink-2">{ready.reason}</p>
+          )}
+          {day.flags.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-2">
+              {day.flags.map((f) => (
+                <li key={f.id} className="flex items-start gap-2.5 rounded-2xl bg-[var(--fill)] px-3 py-2.5">
+                  <span className="mt-px text-warn"><Icon name="alert" size={16} strokeWidth={2.2} /></span>
+                  <span className="min-w-0"><span className="block text-[14px] font-semibold">{f.label}</span><span className="block text-[12px] leading-snug text-ink-3">{f.detail}</span></span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-        {sleep && sleep.stages.length > 0 && (
-          <div className="mt-5 space-y-4">
-            <Hypnogram segments={sleep.stages} startMs={sleep.startMs} endMs={sleep.endMs} timeZone={tz} height={104} />
-            <StageLegend minutes={sleep.stageMinutes} />
-          </div>
-        )}
-        {sleep && sleep.stages.length === 0 && <p className="mt-3 text-[13px] text-ink-3">No stage data for this session.</p>}
       </Glass>
 
-      {/* Vitals ---------------------------------------------------------------------------------- */}
-      <SectionLabel>Overnight vitals</SectionLabel>
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
+      <div>
+      {/* Last night */}
+      <SectionHeader href={`/sleep${v.date !== v.today ? `?date=${v.date}` : ""}`}>Last night</SectionHeader>
+      <Glass className="rise rise-1 p-4">
+        {day.night ? (
+          <>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <Label icon="sleep" tone="sleep">Time asleep</Label>
+                <div className="mt-1"><Value value={fmtDuration(day.night.minutesAsleep, { compact: true })} size="lg" /></div>
+              </div>
+              <div className="text-right text-[13px] text-ink-3 tabular">
+                {fmtTime(day.night.startMs, v.tz)} – {fmtTime(day.night.endMs, v.tz)}
+                {day.sleepDebtMin !== null && day.sleepDebtNights >= 3 && <div className="mt-0.5 font-semibold text-ink-2">Debt {fmtDuration(day.sleepDebtMin, { compact: true })} <span className="font-normal text-ink-3">· 7 nights</span></div>}
+              </div>
+            </div>
+            <Hypnogram segments={v.sleepStages} startMs={day.night.startMs} endMs={day.night.endMs} timeZone={v.tz} height={88} />
+          </>
+        ) : <p className="py-4 text-center text-[14px] text-ink-3">No sleep recorded for this night.</p>}
+      </Glass>
+
+      </div>
+      <div>
+      {/* Vitals */}
+      <SectionHeader href="/health">Vitals</SectionHeader>
       <div className="grid grid-cols-2 gap-3">
-        <VitalTile icon="heart" tone="var(--heart)" label="Resting HR" value={fmtNumber(vitals.restingHr)} unit="bpm" spark={today.trends.restingHr} dates={weekDates} />
-        <VitalTile icon="pulse" tone="var(--recovery)" label="HRV" value={fmtNumber(vitals.hrv)} unit="ms" spark={today.trends.hrv} dates={weekDates} />
-        <VitalTile icon="drop" tone="var(--strength)" label="SpO₂" value={fmtNumber(vitals.spo2, 1)} unit="%" />
-        <VitalTile icon="lungs" tone="var(--sleep)" label="Respiration" value={fmtNumber(vitals.respiratoryRate, 1)} unit="br/min" />
-        <VitalTile icon="thermo" tone="var(--activity)" label="Skin temp" value={fmtSignedNumber(vitals.skinTempDeviation)} unit="°C vs baseline" wide />
+        {v.vitals.map((x, i) => {
+          const dev = x.value !== null && x.base ? x.value - x.base.mean : null;
+          return (
+            <Link key={x.def.id} href={`/metric/${x.def.id}`} transitionTypes={["nav-forward"]} className={cx("glass pressable rise flex flex-col gap-2 p-3.5", `rise-${Math.min(4, i + 1)}`)}>
+              <Label tone={x.def.tone} icon={x.def.group === "heart" ? "heart" : x.def.id === "respiratory_rate" ? "lungs" : x.def.id === "spo2" ? "drop" : "thermo"}>{x.def.short ?? x.def.label}</Label>
+              <div className="flex items-end justify-between gap-1">
+                <Value value={x.value === null ? "—" : formatValue(x.value, "number", x.def.decimals)} unit={x.def.unit} />
+                <Spark values={x.spark} color={toneVar(x.def.tone)} width={58} height={24} />
+              </div>
+              <div className="h-4 text-[12px]">
+                {x.base ? <Delta value={dev} digits={x.def.decimals} unit={x.def.unit} suffix="vs baseline" />
+                  : x.calibrating ? <span className="text-ink-3">Baseline {x.calibrating.have}/14 days</span> : <span className="text-ink-4">No baseline</span>}
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
-      {/* Activity -------------------------------------------------------------------------------- */}
-      <SectionLabel>Activity</SectionLabel>
-      <Glass className="flex items-center gap-5 p-5">
-        <Ring value={activity.steps} max={STEP_GOAL} color="var(--activity)" size={104} stroke={11} label={`Steps ${activity.steps ?? "unknown"} of ${STEP_GOAL}`}>
-          <div>
-            <div className="text-[20px] font-semibold leading-none tabular">{activity.steps !== null ? fmtNumber(activity.steps) : "—"}</div>
-            <div className="mt-1 text-[10px] font-medium text-ink-3">of {fmtNumber(STEP_GOAL)} steps</div>
-          </div>
-        </Ring>
-        <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-3">
-          <Kv label="Distance" value={activity.distanceM !== null ? fmtNumber(activity.distanceM / 1000, 2) : "—"} unit="km" />
-          <Kv label="Zone minutes" value={fmtNumber(activity.azm)} unit="AZM" />
-          <Kv label="Active energy" value={fmtNumber(activity.activeKcal)} unit="kcal" est />
-          <Kv label="Total energy" value={fmtNumber(activity.totalKcal)} unit="kcal" est />
-        </dl>
+      {/* Activity */}
+      <SectionHeader href="/metric/steps">Activity</SectionHeader>
+      <Glass className="rise list overflow-hidden">
+        {[
+          { id: "steps", icon: "steps" as const, v: fmtNumber(v.activity.steps), u: "" },
+          { id: "active_kcal", icon: "flame" as const, v: fmtNumber(v.activity.activeKcal), u: "kcal", est: true },
+          { id: "total_kcal", icon: "flame" as const, v: fmtNumber(v.activity.totalKcal), u: "kcal", est: true },
+          { id: "azm", icon: "heart" as const, v: fmtNumber(v.activity.azm), u: "AZM" },
+          { id: "zone2", icon: "bolt" as const, v: fmtNumber(v.zone2), u: "min" },
+          { id: "distance", icon: "steps" as const, v: fmtNumber(v.activity.distance, 2), u: "km" },
+        ].map((r) => (
+          <Row key={r.id} href={`/metric/${r.id}`} icon={r.icon} tone={r.id === "azm" ? "heart" : r.id === "zone2" ? "load" : "activity"}
+            title={<span>{r.id === "steps" ? "Steps" : r.id === "active_kcal" ? "Active energy" : r.id === "total_kcal" ? "Total energy" : r.id === "azm" ? "Active Zone Minutes" : r.id === "zone2" ? "Zone 2" : "Distance"}{r.est ? <span className="ml-1.5 align-middle"><Badge>est.</Badge></span> : null}</span>}
+            trailing={<Value value={r.v} unit={r.u} size="sm" />} />
+        ))}
       </Glass>
 
-      {/* Workouts -------------------------------------------------------------------------------- */}
-      <SectionLabel href="/training">Recent workouts</SectionLabel>
-      {today.workouts.length === 0 ? (
-        <Glass className="p-5 text-[14px] text-ink-2">No Hevy workouts imported yet.</Glass>
-      ) : (
-        <Glass className="divide-y divide-[var(--hairline)] overflow-hidden">
-          {today.workouts.map((w) => (
-            <Link key={w.id} href={`/training/${encodeURIComponent(w.id)}`} className="pressable flex items-center gap-4 px-5 py-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklab,var(--strength)_16%,transparent)] text-strength"><Icon name="training" size={20} /></span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[16px] font-semibold">{w.title}</div>
-                <div className="text-[13px] text-ink-2 tabular">{fmtDateShort(w.startMs, tz)} · {fmtDuration((w.endMs - w.startMs) / 60000, { compact: true })} · {fmtNumber(w.volume.volumeKg)} kg</div>
-              </div>
-              <div className="text-right">
-                <div className={cx("text-[15px] font-semibold tabular", w.hr.avg === null && "text-ink-3")}>{w.hr.avg !== null ? `${Math.round(w.hr.avg)}` : "—"}<span className="ml-0.5 text-[11px] font-medium text-ink-2">bpm</span></div>
-                <div className="text-[11px] text-ink-3">avg HR</div>
-              </div>
-              <span className="text-ink-3"><Icon name="chevronRight" size={16} /></span>
-            </Link>
+      </div>
+      </div>
+      {/* Workouts */}
+      <SectionHeader href="/training">Workouts</SectionHeader>
+      {v.workouts.length ? (
+        <Glass className="list overflow-hidden">
+          {v.workouts.map((w) => (
+            <Row key={w.id} href={`/training/${encodeURIComponent(w.id)}`} icon={w.type.includes("WALK") || w.type.includes("RUN") ? "steps" : "bolt"} tone="load" title={w.title}
+              subtitle={`${fmtTime(w.startMs, v.tz)} · ${fmtDuration(w.durationMin, { compact: true })}${w.hr?.stats.avgBpm ? ` · avg ${Math.round(w.hr.stats.avgBpm)} bpm` : ""}${w.excluded ? " · excluded" : ""}`}
+              trailing={w.hr?.load ? <Value value={String(Math.round(w.hr.load.trimp))} unit="load" size="sm" /> : undefined} />
           ))}
         </Glass>
-      )}
-    </>
-  );
-}
-
-function VitalTile({ icon, tone, label, value, unit, spark, dates, wide }: {
-  icon: IconName; tone: string; label: string; value: string; unit: string; spark?: { date: string; value: number }[]; dates?: string[]; wide?: boolean;
-}) {
-  return (
-    <Glass className={cx("p-4", wide && "col-span-2")}>
-      <MetricLabel icon={icon} tone={tone}>{label}</MetricLabel>
-      <div className="mt-2 flex items-end justify-between gap-2">
-        <Stat value={value} unit={unit} />
-        {spark && dates && <Sparkline points={spark} dates={dates} color={tone} />}
-      </div>
-    </Glass>
-  );
-}
-
-function Kv({ label, value, unit, est }: { label: string; value: string; unit: string; est?: boolean }) {
-  return (
-    <div className="min-w-0">
-      <dt className="truncate text-[12px] font-medium text-ink-2">{label}</dt>
-      <dd className="mt-0.5 flex items-baseline gap-1.5"><Stat size="sm" value={value} unit={unit} />{est && value !== "—" && <Badge>est.</Badge>}</dd>
-    </div>
+      ) : <Glass className="p-4 text-center text-[14px] text-ink-3">No workouts recorded on this day.</Glass>}
+    </Page>
   );
 }

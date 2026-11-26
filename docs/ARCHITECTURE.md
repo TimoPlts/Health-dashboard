@@ -25,8 +25,11 @@ Single-user, local-first web app (installable PWA) with a server that owns crede
 | Raw storage | `raw_pages` table | every response body verbatim (gzip) + request key; allows re-normalization. |
 | Normalized storage | `heart_rate_samples`, `observations`, `daily_metrics`, `sleep_*`, `exercise_sessions`, `hevy_*` | see DATA_MODEL.md |
 | Sync | `src/server/sync/engine.ts`, `run.ts`, `scripts/sync.ts` | per-stream state, backfill + lookback, idempotent upserts, one run at a time. |
-| Calculated metrics | `src/lib/metrics/*` | pure, versioned, tested; computed on read (cheap at single-user scale). |
-| Settings | `settings` table | schema exists; UI planned. |
+| Calculated metrics | `src/lib/metrics/*` | pure, versioned, tested. |
+| Analytics | `src/server/analytics/*` | `series.ts` (per-day series from normalized tables), `derive.ts` (`derived_daily` cache: TRIMP, zones, worn time; rebuilt after each sync), `scores.ts` (recovery, readiness, sleep score/debt, ACWR, flags; computed on read), `registry.ts` (every metric: source, unit, explanation, method), `values.ts` (metric detail), `workouts.ts` (Google sessions → workouts). |
+| Page read models | `src/server/views.ts` | one function per page, plain data to Server Components. |
+| Scheduler | `src/instrumentation.ts` → `src/server/sync/scheduler.ts` | in-process timer (Settings interval, default 30 min), backoff on failure, cross-process lock file in BASELINE_HOME. |
+| Settings | `settings` table, `src/server/settings.ts`, `/api/settings` | sleep need, HRmax override, auto-sync interval, Google profile age. |
 
 ## Key decisions (ADRs in `docs/adr/`)
 - **0001** PWA + Node server, not native, for v1: all sources are cloud APIs; HealthKit/BLE not needed.

@@ -53,7 +53,7 @@ export function Hypnogram({ segments, startMs, endMs, timeZone, height = 128 }: 
         <span>{fmt.format(endMs)}</span>
       </div>
       {hovered && (
-        <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-lg glass glass-strong px-2.5 py-1 text-[12px] font-medium whitespace-nowrap tabular">
+        <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-lg glass glass-thick px-2.5 py-1 text-[12px] font-medium whitespace-nowrap tabular">
           {ROWS[rowOf(hovered.stage)]?.label} · {fmt.format(hovered.startMs)}–{fmt.format(hovered.endMs)} · {Math.round((hovered.endMs - hovered.startMs) / 60000)} min
         </div>
       )}

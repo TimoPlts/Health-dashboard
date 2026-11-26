@@ -7,7 +7,7 @@ export function cx(...c: (string | false | null | undefined)[]) {
 }
 
 export function Glass({ children, className, strong, as: As = "section" }: { children: ReactNode; className?: string; strong?: boolean; as?: "section" | "div" | "article" }) {
-  return <As className={cx("glass", strong && "glass-strong", className)}>{children}</As>;
+  return <As className={cx("glass", strong && "glass-thick", className)}>{children}</As>;
 }
 
 /** Large iOS-style navigation title. */

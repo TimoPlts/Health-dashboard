@@ -49,7 +49,7 @@ describe("metric series & detail", () => {
     expect(d.period).toMatchObject({ value: 52, days: 2, min: 50, max: 54 });
     expect(d.previous.value).toBe(60);
     expect(d.change!.abs).toBe(-8);
-    expect(d.baseline).toMatchObject({ calibrating: true, have: 3, need: 14 });
+    expect(d.baseline).toMatchObject({ status: "calibrating", have: 3, need: 14 });
   });
   it("every registered metric resolves without error on an empty database", () => {
     for (const m of METRICS) expect(() => metricDetail(db, m.id, "30d", "2026-03-07", FB)).not.toThrow();

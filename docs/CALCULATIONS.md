@@ -130,6 +130,16 @@ Independent flags, each shown with its reason. They are never combined into a di
 ### SLP-MID · `sleep-midpoint-sd@1` (`midpointVariability`)
 - Circular standard deviation of sleep midpoints in local time, in minutes. Needs ≥ 5 nights.
 
+### WORKOUTS · `workouts@1` (`src/server/analytics/workouts.ts`)
+- Source: Google `exercise` sessions, from all sources, with provenance kept. Verified on real data: Hevy writes each workout to Apple Health, which Google imports as `HEALTH_KIT` / `com.hevyapp.hevy`. These carry the type (`STRENGTH_TRAINING`), a generic name, an active duration and Hevy's calorie estimate. **No exercises, sets, reps or weights**, and none are fabricated. Hevy sometimes writes a workout twice, and the Fitbit Air may detect it too.
+- Grouping: sessions are merged when they have the same `exerciseType` and overlap ≥ 50 % of the shorter one.
+  - Primary session: the Fitbit-recorded one, else the longest.
+  - Analysis window: the union of the grouped intervals.
+  - Calories: from the primary session, else the first session that has them, with the source named.
+- Heart-rate metrics in the window: HR-STATS (avg/min/max, coverage), LOAD-EDWARDS (TRIMP, %HRmax zones), Google's zones (`timeInBands`), and HR recovery (drop at +60 s and +120 s, requiring samples within ±10 s).
+- Sessions shorter than 60 s are listed but not analysed.
+- **Exclusions** live in `exercise_exclusions` and never modify provider rows. Excluded workouts are left out of workout counts, totals and comparisons. All-day load (`load_trimp`) is heart-rate based and therefore unaffected.
+
 ### Aggregation rules (all metric pages)
 - Weekly, monthly and period values are the **mean of the days that have data**. For additive metrics (steps, energy, minutes) that is the mean daily total. Missing days are never counted as 0. The number of days with data is shown next to every average.
 - Period comparison: the selected range vs the previous range of equal length.

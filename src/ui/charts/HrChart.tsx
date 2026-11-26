@@ -84,7 +84,7 @@ export function HrChart({ samples, startMs, endMs, fromMs, toMs, timeZone, bands
         <span>{fmt.format(toMs)}</span>
       </div>
       {hover && (
-        <div className="pointer-events-none absolute top-1 rounded-lg glass glass-strong px-2.5 py-1 text-[12px] font-medium whitespace-nowrap tabular"
+        <div className="pointer-events-none absolute top-1 rounded-lg glass glass-thick px-2.5 py-1 text-[12px] font-medium whitespace-nowrap tabular"
           style={{ left: `clamp(0px, calc(${(sx(hover.tMs) / W) * 100}% - 48px), calc(100% - 120px))` }}>
           <span className="font-semibold">{hover.bpm}</span> bpm · {fmt.format(hover.tMs)}
         </div>

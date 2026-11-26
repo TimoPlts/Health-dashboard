@@ -43,6 +43,7 @@ export function metricSeries(db: DB, def: MetricDef, from: string, to: string, f
   }
 }
 
+export type MetricBaseline = { status: "ok"; mean: number; sd: number; n: number } | { status: "calibrating"; have: number; need: number };
 export type RangeKey = "7d" | "30d" | "90d" | "1y";
 export const RANGE_DAYS: Record<RangeKey, number> = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 };
 
@@ -74,9 +75,9 @@ export function metricDetail(db: DB, id: string, range: RangeKey, end: string, f
   const cur = aggregate(def, all, from, end), prev = aggregate(def, all, prevFrom, prevTo);
   const baseVals = dateRange(shiftDate(end, -28), shiftDate(end, -1)).map((d) => all.get(d)).filter((v): v is number => v !== undefined);
   const bMean = mean(baseVals);
-  const baseline = def.baseline && baseVals.length >= 14 && bMean !== null
-    ? { mean: bMean, sd: Math.sqrt(baseVals.reduce((a, v) => a + (v - bMean) ** 2, 0) / (baseVals.length - 1)), n: baseVals.length }
-    : def.baseline ? { calibrating: true as const, have: baseVals.length, need: 14 } : null;
+  const baseline: MetricBaseline | null = def.baseline && baseVals.length >= 14 && bMean !== null
+    ? { status: "ok", mean: bMean, sd: Math.sqrt(baseVals.reduce((a, v) => a + (v - bMean) ** 2, 0) / (baseVals.length - 1)), n: baseVals.length }
+    : def.baseline ? { status: "calibrating", have: baseVals.length, need: 14 } : null;
   return {
     def, range, from, to: end, points,
     latest: latestDate ? { date: latestDate, value: all.get(latestDate)! } : null,

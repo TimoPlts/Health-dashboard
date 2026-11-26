@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.4.0 — 2026-11-26 (Analytics, redesign, workouts, automatic sync)
+### Added
+- Analytics engine:
+  - recovery index, training readiness and fatigue flags against 28-day personal baselines, with explicit calibration
+  - sleep score, need, debt, Sleep Regularity Index and midpoint variability
+  - Edwards TRIMP and %HRmax zones from all-day heart rate (HRmax 220 − age, matching Google's zone model, verified)
+  - ACWR and training balance
+  - `derived_daily` cache and a metric registry (59 measurements)
+- Pages:
+  - Today: recovery / sleep / load rings, readiness, flags, last night, vitals vs baseline, activity, workouts
+  - Sleep: score breakdown, stages, need/debt, consistency, bed & wake chart, sleep vitals
+  - Health: every measurement
+  - Metric detail: ranges, scrubbable chart, baseline band, averages, min/max, previous-period comparison, source and method sheet, data table
+  - Trends; Training; workout detail; Settings
+- Workouts from Google exercise sessions + Fitbit HR, no Hevy Pro needed:
+  - grouping of Fitbit and Hevy-via-Apple-Health duplicates
+  - zones, load, HR recovery, comparisons
+  - exclusions that leave provider data untouched
+- Automatic sync scheduler:
+  - runs while the server is up, every 30 min by default (configurable)
+  - backoff after failures; cross-process lock
+  - status pill and per-stream status
+- Settings: sleep need, HRmax override, sync interval. Google profile age is stored on sync.
+- Liquid-Glass design system v2:
+  - domain tokens for dark and light
+  - floating glass tab bar, view transitions, bottom sheets
+  - desktop two-column layout
+- `npm run check:analytics`: coverage, status and timings on real data, never values.
+- Demo seed covers all streams over 60 days.
+### Changed
+- Hevy is optional and nothing depends on it. Its workout page moved to `/training/hevy/[id]`.
+- E2E covers every page in dark, light and desktop, with axe checks.
+
+
 ## 0.3.0 — 2026-11-26 (Phase 1: Google data foundation verified)
 ### Fixed
 - Google filters used camelCase type names (`heartRate.sample_time…`) → HTTP 400 for 20 of 24 streams. Filters now use snake_case; paths stay kebab-case.

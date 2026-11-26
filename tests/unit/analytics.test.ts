@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { acwr, chooseHrMax, zoneLoad } from "@/lib/metrics/load";
 import { fatigueFlags, hrvBaseline, normCdf, recoveryIndex, rhrBaseline, trainingReadiness } from "@/lib/metrics/recovery";
+import { groupSessions } from "@/server/analytics/workouts";
 import { midpointVariability, sleepDebt, sleepRegularityIndex, sleepScore } from "@/lib/metrics/sleep";
 
 // All values are FICTIONAL.
@@ -113,5 +114,18 @@ describe("sleep analytics", () => {
     const mids = [-10, 10, -5, 5, 0].map((m, i) => d0 + i * D + m * 60_000); // around 00:00 UTC
     const v = midpointVariability(mids, mids.map(() => 0))!;
     expect(v.sdMin).toBeLessThan(10);
+  });
+});
+
+describe("workout grouping (Google sessions)", () => {
+  const s = (id: string, startMin: number, endMin: number, type = "STRENGTH_TRAINING") => ({ id, startMs: startMin * 60_000, endMs: endMin * 60_000, exerciseType: type });
+  it("merges same-type sessions overlapping ≥ 50 % of the shorter one (Fitbit + Hevy duplicates)", () => {
+    const g = groupSessions([s("hevy", 0, 84), s("fitbit", 15, 58), s("hevy-dup", 10, 72)]);
+    expect(g).toHaveLength(1);
+    expect(g[0]!.map((x) => x.id).sort()).toEqual(["fitbit", "hevy", "hevy-dup"]);
+  });
+  it("keeps different types and small overlaps separate", () => {
+    expect(groupSessions([s("walk", 0, 32, "TREADMILL_WALK"), s("lift", 4, 64)])).toHaveLength(2);
+    expect(groupSessions([s("a", 0, 60), s("b", 55, 120)])).toHaveLength(2);
   });
 });

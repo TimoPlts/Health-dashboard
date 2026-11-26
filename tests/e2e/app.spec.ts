@@ -34,33 +34,64 @@ test("wrong password is rejected", async ({ page }) => {
   await shot(page, "login");
 });
 
-test("today, training, workout detail and settings render with demo data", async ({ page }) => {
+const noOverflow = async (page: import("@playwright/test").Page) => {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+};
+
+test("today, sleep, health, metric detail and trends render with demo data", async ({ page }) => {
   await login(page);
   await expect(page.getByRole("status")).toContainText("DEMO MODE");
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Recovery/ })).toBeVisible();
   await expect(page.getByText("Last night")).toBeVisible();
-  await expect(page.getByText("Resting HR")).toBeVisible();
-  await page.waitForTimeout(400);
-  await shot(page, "today");
-  await axe(page);
+  await page.waitForTimeout(500);
+  await shot(page, "today"); await axe(page); await noOverflow(page);
 
-  // No horizontal overflow at phone width
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
+  await page.getByRole("link", { name: "Sleep", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sleep" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Sleep stages over the night" })).toBeVisible();
+  await shot(page, "sleep"); await axe(page); await noOverflow(page);
 
-  await page.getByRole("link", { name: "Training" }).click();
+  await page.getByRole("button", { name: /Method/ }).click();
+  await expect(page.getByRole("dialog", { name: "How the sleep score works" })).toBeVisible();
+  await shot(page, "sheet");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Health", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Health" })).toBeVisible();
+  await shot(page, "health"); await axe(page); await noOverflow(page);
+
+  await page.goto("/metric/resting_hr?range=90d");
+  await expect(page.getByRole("heading", { name: "Resting heart rate" })).toBeVisible();
+  await expect(page.getByText("Personal baseline")).toBeVisible();
+  await shot(page, "metric"); await axe(page); await noOverflow(page);
+
+  await page.goto("/trends");
+  await expect(page.getByRole("heading", { name: "Trends" })).toBeVisible();
+  await shot(page, "trends"); await axe(page); await noOverflow(page);
+});
+
+test("training, workout detail, exclusion and settings", async ({ page }) => {
+  await login(page);
+  await page.goto("/training");
   await expect(page.getByRole("heading", { name: "Training" })).toBeVisible();
-  await shot(page, "training");
-  await axe(page);
+  await shot(page, "training"); await axe(page); await noOverflow(page);
 
-  await page.locator('a[href^="/training/"]').first().click();
-  await expect(page.getByText("Heart rate · Fitbit Air")).toBeVisible();
+  await page.locator('a[href^="/training/demo-ex-fitbit"]').first().click();
   await expect(page.getByRole("img", { name: "Heart rate over time" })).toBeVisible();
-  await shot(page, "workout");
-  await axe(page);
+  await expect(page.getByText("Hevy (via Apple Health)")).toBeVisible();
+  await expect(page).toHaveTitle(/Workout · Baseline/);
+  await shot(page, "workout"); await axe(page); await noOverflow(page);
 
-  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Exclude from analytics" }).click();
+  await expect(page.getByText("Excluded from analytics")).toBeVisible();
+  await page.getByRole("button", { name: "Include in analytics" }).click();
+  await expect(page.getByRole("button", { name: "Exclude from analytics" })).toBeVisible();
+
+  await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Google Health" })).toBeVisible();
-  await shot(page, "settings");
-  await axe(page);
+  await expect(page.getByText("Next automatic sync")).toBeVisible();
+  await shot(page, "settings"); await axe(page);
 });

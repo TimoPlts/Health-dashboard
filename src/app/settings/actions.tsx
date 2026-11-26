@@ -64,3 +64,40 @@ export function LogoutButton() {
     </button>
   );
 }
+
+/** Owner preferences: sleep need, HRmax override, automatic sync interval. */
+export function PrefsForm({ sleepNeedMin, hrMaxOverride, autoSyncMinutes, googleHrMax, disabled }: { sleepNeedMin: number; hrMaxOverride: number | null; autoSyncMinutes: number; googleHrMax: number | null; disabled?: boolean }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const save = async (patch: Record<string, unknown>) => {
+    setBusy(true);
+    await fetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) });
+    setBusy(false);
+    router.refresh();
+  };
+  const sel = "rounded-xl bg-[var(--fill-2)] px-3 py-2 text-[15px] font-semibold outline-none disabled:opacity-50";
+  return (
+    <div className="list">
+      <label className="flex items-center justify-between gap-3 px-4 py-3">
+        <span><span className="block text-[15px] font-semibold">Sleep need</span><span className="text-[12px] text-ink-3">Used for sleep score, debt and recovery · 7–9 h recommended</span></span>
+        <select className={sel} disabled={disabled || busy} defaultValue={sleepNeedMin} onChange={(e) => save({ sleepNeedMin: Number(e.target.value) })}>
+          {[420, 450, 480, 510, 540].map((m) => <option key={m} value={m}>{Math.floor(m / 60)} h {m % 60 ? `${m % 60} min` : ""}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3 px-4 py-3">
+        <span><span className="block text-[15px] font-semibold">Maximum heart rate</span><span className="text-[12px] text-ink-3">{googleHrMax ? `Google uses ${googleHrMax} bpm (220 − age)` : "Google profile age not available yet"}</span></span>
+        <select className={sel} disabled={disabled || busy} defaultValue={hrMaxOverride ?? ""} onChange={(e) => save({ hrMaxOverride: e.target.value ? Number(e.target.value) : null })}>
+          <option value="">As Google</option>
+          {Array.from({ length: 61 }, (_, i) => 160 + i).map((b) => <option key={b} value={b}>{b} bpm</option>)}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3 px-4 py-3">
+        <span><span className="block text-[15px] font-semibold">Automatic sync</span><span className="text-[12px] text-ink-3">While the Baseline server is running</span></span>
+        <select className={sel} disabled={disabled || busy} defaultValue={autoSyncMinutes} onChange={(e) => save({ autoSyncMinutes: Number(e.target.value) })}>
+          <option value={0}>Off</option>
+          {[15, 30, 60, 120, 240].map((m) => <option key={m} value={m}>Every {m < 60 ? `${m} min` : `${m / 60} h`}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}

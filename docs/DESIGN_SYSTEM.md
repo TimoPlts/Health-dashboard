@@ -1,13 +1,13 @@
 # Design system — Baseline
 
-Tokens: `src/app/globals.css`. Primitives: `src/ui/primitives.tsx`. Charts: `src/ui/charts/`. Icons: `src/ui/icons.tsx` (original 24 px line set, no emoji). Brand: `src/ui/Logo.tsx`.
+Tokens: `src/app/globals.css`. Kit: `src/ui/kit.tsx` (Page, Glass, LargeTitle, SectionHeader, Value, Row, Badge, Calibrating, Delta). Controls: `src/ui/controls.tsx` (DateNav, Segmented, Sheet, ExcludeToggle). `src/ui/primitives.tsx` remains only for the optional Hevy page. Charts: `src/ui/charts/`. Icons: `src/ui/icons.tsx` (original 24 px line set, no emoji). Brand: `src/ui/Logo.tsx`.
 
 ## Brand
-**Baseline**: health measured against *your own* normal. Mark: a flat line with one gentle rise that returns to it (deviation and recovery). Wordmark in SF Pro Display semibold, −0.025em. The icon is the mark in coral on a graphite tile with a soft top light. Understated on purpose; a full visual overhaul follows once real data is in.
+**Baseline**: health measured against *your own* normal. Mark: a flat line with one gentle rise that returns to it (deviation and recovery). Wordmark in SF Pro Display semibold, −0.025em. The icon is the mark in coral on a graphite tile with a soft top light. Understated on purpose.
 
 ## Principles
 1. **Numbers first.** One hero number per card, large and tabular. Units are small and secondary. Missing values are “—”, never 0.
-2. **Colour means something.** Heart = coral, sleep = blue ramp, activity = amber, recovery = mint, strength = ice blue. Everything else is neutral glass.
+2. **Colour means something.** One accent per domain: recovery (green), sleep (indigo), load (orange), heart (coral), activity (amber), vitals (teal), body (lilac). Values and labels stay in ink; colour identifies (rings, strokes, icons). Everything else is neutral glass.
 3. **Glass is a material, not a decoration.** One translucent layer over a quiet ambient light field. Nested glass is avoided.
 4. **Progressive disclosure.** Today shows a summary. Tapping goes to detail (workout page today; metric pages planned).
 5. **Honest charts.** No smoothing, no interpolation across gaps, data-driven scales, estimates labelled “est.”.
@@ -41,7 +41,23 @@ Sleep-stage palette was checked with the dataviz palette validator: adjacent CVD
 - `SyncButton` (starts background sync, polls, refreshes).
 
 ## Layout
-Mobile-first column, max 560 px, 16 px gutters, bottom padding clears the tab bar + home indicator. `viewport-fit=cover` + `env(safe-area-inset-*)`. Desktop currently shows the same centred column. A wider desktop layout is planned.
+Mobile-first column, max 560 px, 16 px gutters, bottom padding clears the floating tab bar + home indicator. `viewport-fit=cover` + `env(safe-area-inset-*)`. From `lg` (1024 px): max 980 px with two-column sections on Today, Health and Trends.
+
+## Navigation & motion
+- Floating Liquid-Glass tab bar: Today · Sleep · Training · Trends · Health. Settings sits behind the gear on Today. The active "lens" glides with a spring.
+- Page transitions use React `<ViewTransition>` (`src/ui/kit.tsx → Page`): `nav-forward` / `nav-back` slide-and-fade for drill-down, `tab` cross-fade for tabs. All motion is disabled under `prefers-reduced-motion`.
+- Bottom sheets (`Sheet`): scrim, spring-in, drag down to dismiss, Escape closes, focus moves into the dialog.
+- Content rises once on load (`.rise`). Rings draw their arc once (`.ring-arc`).
+
+## Charts
+- `TrendChart`: touch/mouse scrubbing with a live readout line. Lines break at missing days and are never drawn to 0. Bars are omitted for missing days. The personal baseline is drawn as a translucent band with a dashed mean. Targets (e.g. sleep need) are dotted lines.
+- `HrChart`: real samples only. Gaps over 30 s break the line. Google's zones appear as faint bands.
+- `Hypnogram`: stage encoded by row **and** colour.
+- Zones: the Z1–Z5 colours form a sequential warm ramp. Adjacent steps are below the validator's normal-vision ΔE floor, so zones are **always drawn as labelled rows** and colour is never the identifier.
+- Scores: `Ring`. A null value shows a dashed empty track, never a filled zero. Calibrating states show progress (`Calibrating`).
+
+## Design review
+UI work is reviewed through screenshots of the **fictional demo database only** (`npm run db:seed-demo`, DEMO_MODE). The owner's real data is never rendered into screenshots that leave the machine. E2E (`npm run test:e2e`) stores iPhone dark/light + desktop screenshots in `screenshots/` (git-ignored) and runs axe on every page.
 
 ## Avoid list (enforced in review)
 Generic dashboard grids, neon/glow everywhere, random purple gradients, emoji icons, pill overload, placeholder copy, fake stats outside demo mode, decorative charts.

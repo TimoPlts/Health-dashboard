@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             DEMO MODE — all values are fictional and not real measurements
           </div>
         )}
-        <main className="safe-bottom-pad mx-auto w-full max-w-[560px] px-4">{children}</main>
+        <main className="safe-bottom-pad mx-auto w-full max-w-[560px] px-4 lg:max-w-[980px] lg:px-8">{children}</main>
         <TabBar />
       </body>
     </html>
