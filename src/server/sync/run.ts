@@ -1,33 +1,84 @@
+import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "node:fs";
+import path from "node:path";
 import type { DB } from "../db/client";
-import { env } from "../env";
+import { env, isDemoMode } from "../env";
 import { getConnection, getGoogleAccessToken, getHevyApiKey } from "../connections";
 import { GoogleHealthClient } from "../providers/google/client";
 import { HevyClient } from "../providers/hevy/client";
-import { syncGoogle, syncHevy, type SyncLogger } from "./engine";
+import { syncGoogle, syncHevy, describeError, type SyncLogger } from "./engine";
+import { computeDerived, datesNeedingDerive } from "../analytics/derive";
+import { setSetting } from "../settings";
+import { offsetMs } from "@/lib/time";
+import { todayDate } from "../queries";
+import { ensureSafeDir, runtimePaths } from "../runtime-home";
 
-const g = globalThis as unknown as { __syncRunning?: Promise<unknown> };
+const g = globalThis as unknown as { __syncRunning?: Promise<unknown>; __syncStartedAt?: number };
 
 export function isSyncRunning() {
   return g.__syncRunning !== undefined;
 }
+export function syncStartedAt() {
+  return g.__syncStartedAt ?? null;
+}
+
+const LOCK_STALE_MS = 45 * 60_000;
 
 /**
- * Sync every connected provider. Only one sync runs per process at a time; a second call while one is
- * running joins the running one instead of starting a parallel import.
+ * Cross-process lock (web server + CLI/Task Scheduler) via an exclusive lock file in the runtime folder.
+ * A lock older than 45 min is treated as stale (crashed process) and replaced.
+ */
+function acquireLock(): (() => void) | null {
+  const file = path.join(isDemoMode() ? "./data" : ensureSafeDir(runtimePaths().home), "sync.lock");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(file, "wx");
+      writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
+      closeSync(fd);
+      return () => { try { unlinkSync(file); } catch { /* already gone */ } };
+    } catch {
+      try {
+        const age = Date.now() - statSync(file).mtimeMs;
+        if (age > LOCK_STALE_MS) { unlinkSync(file); continue; }
+        void readFileSync(file);
+      } catch { continue; }
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Sync every connected provider, then refresh derived metrics. Only one sync runs at a time — within this process
+ * a second call joins the running one; across processes the lock file makes the second caller skip.
+ * Hevy is optional: nothing in Baseline depends on it.
  */
 export function syncAll(db: DB, trigger: string, log?: SyncLogger) {
   if (g.__syncRunning) return g.__syncRunning;
   const run = (async () => {
     const out: Record<string, unknown> = {};
-    const google = getConnection(db, "google");
-    if (google?.status === "connected") {
-      const client = new GoogleHealthClient(() => getGoogleAccessToken(db), {}, async () => { await getGoogleAccessToken(db, { force: true }); });
-      out.google = await syncGoogle(db, client, { backfillDays: env().BACKFILL_DAYS, trigger, log, timeZone: env().HOME_TIME_ZONE });
-    }
-    const hevyKey = getHevyApiKey(db);
-    if (hevyKey) out.hevy = await syncHevy(db, new HevyClient(hevyKey), { trigger, log });
-    return out;
-  })().finally(() => { g.__syncRunning = undefined; });
+    const release = acquireLock();
+    if (!release) { log?.warn("Another Baseline sync is running (lock file present) — skipped."); return { skipped: true }; }
+    try {
+      const tz = env().HOME_TIME_ZONE;
+      const google = getConnection(db, "google");
+      if (google?.status === "connected") {
+        const client = new GoogleHealthClient(() => getGoogleAccessToken(db), {}, async () => { await getGoogleAccessToken(db, { force: true }); });
+        out.google = await syncGoogle(db, client, { backfillDays: env().BACKFILL_DAYS, trigger, log, timeZone: tz });
+        try {
+          const p = await client.getProfile();
+          if (typeof p.age === "number") setSetting(db, "profileAge", p.age);
+        } catch (e) { log?.warn(`profile: ${describeError(e)}`); }
+        const fb = Math.round(offsetMs(Date.now(), tz) / 1000);
+        const dates = datesNeedingDerive(db, todayDate(), 3, fb);
+        const d = computeDerived(db, dates, tz);
+        log?.info(`derived metrics: ${d.days} days`);
+      }
+      const hevyKey = getHevyApiKey(db);
+      if (hevyKey) out.hevy = await syncHevy(db, new HevyClient(hevyKey), { trigger, log });
+      return out;
+    } finally { release(); }
+  })().finally(() => { g.__syncRunning = undefined; g.__syncStartedAt = undefined; });
   g.__syncRunning = run;
+  g.__syncStartedAt = Date.now();
   return run;
 }

@@ -63,6 +63,14 @@ export class GoogleHealthClient {
     return JSON.parse(text) as Record<string, unknown>;
   }
 
+  /** `users/me/profile` (profile scope): age, membership start, stride lengths. Verified on a real account. */
+  async getProfile(): Promise<{ age?: number }> {
+    const res = await this.get(`${GOOGLE_HEALTH_BASE}/users/me/profile`);
+    const text = await res.text();
+    if (!res.ok) throw new HttpError(res.status, text.slice(0, 500), res.url);
+    return JSON.parse(text) as { age?: number };
+  }
+
   /**
    * dailyRollUp over a civil date range [fromDate, toDate) ("YYYY-MM-DD"), one bucket per day.
    * POST body per developers.google.com/health/reference/rest/v4/users.dataTypes.dataPoints/dailyRollUp.

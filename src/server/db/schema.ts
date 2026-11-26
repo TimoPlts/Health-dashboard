@@ -254,3 +254,28 @@ export const settings = sqliteTable("settings", {
   value: text("value", { mode: "json" }).notNull(),
   updatedAt: integer("updated_at").notNull().default(sql`(unixepoch() * 1000)`),
 });
+
+/**
+ * Layer 3 cache: per-civil-day values computed from normalized data by versioned functions in src/lib/metrics
+ * (e.g. all-day TRIMP, minutes per %HRmax zone). Recomputed after every sync for the affected days; safe to drop.
+ * Raw and normalized provider data are never modified.
+ */
+export const derivedDaily = sqliteTable(
+  "derived_daily",
+  {
+    metric: text("metric").notNull(),
+    date: text("date").notNull(),
+    value: real("value").notNull(),
+    version: text("version").notNull(),
+    attrs: text("attrs", { mode: "json" }).$type<Record<string, unknown>>(),
+    computedAt: integer("computed_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.metric, t.date] }), index("derived_daily_date").on(t.date)],
+);
+
+/** Owner decisions to leave a provider exercise session out of Baseline's analytics. Provider data stays untouched. */
+export const exerciseExclusions = sqliteTable("exercise_exclusions", {
+  sessionId: text("session_id").primaryKey(),
+  reason: text("reason"),
+  excludedAt: integer("excluded_at").notNull(),
+});
