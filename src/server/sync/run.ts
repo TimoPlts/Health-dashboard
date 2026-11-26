@@ -7,10 +7,12 @@ import { GoogleHealthClient } from "../providers/google/client";
 import { HevyClient } from "../providers/hevy/client";
 import { closeInterruptedRuns, syncGoogle, syncHevy, describeError, type SyncLogger } from "./engine";
 import { computeDerived, datesNeedingDerive } from "../analytics/derive";
-import { setSetting } from "../settings";
+import { getSettings, setSetting } from "../settings";
 import { offsetMs } from "@/lib/time";
 import { todayDate } from "../queries";
 import { ensureSafeDir, runtimePaths } from "../runtime-home";
+import { autoBackupIfDue } from "../data/backup";
+import { applyRetention } from "../data/retention";
 
 const g = globalThis as unknown as { __syncRunning?: Promise<unknown>; __syncStartedAt?: number };
 
@@ -86,6 +88,12 @@ export function syncAll(db: DB, trigger: string, log?: SyncLogger) {
       }
       const hevyKey = getHevyApiKey(db);
       if (hevyKey) out.hevy = await syncHevy(db, new HevyClient(hevyKey), { trigger, log });
+      if (!isDemoMode()) {
+        // Housekeeping after each sync: daily automatic backup, then retention (docs/SECURITY.md → Retention).
+        try { const b = await autoBackupIfDue(db, getSettings(db).backupKeep); if (b) log?.info(`automatic backup ${b.name}`); }
+        catch (e) { log?.warn(`automatic backup failed: ${describeError(e)}`); }
+        try { applyRetention(db); } catch (e) { log?.warn(`retention failed: ${describeError(e)}`); }
+      }
       return out;
     } finally { release(); }
   })().finally(() => { g.__syncRunning = undefined; g.__syncStartedAt = undefined; });

@@ -18,6 +18,15 @@
 - Secure cookies over HTTPS, sliding 30-day sessions, `no-store` on all personal responses, HSTS.
 - `/api/health` (no data), loading state, PWA manifest id/scope/maskable icon, Server block in Settings.
 - `npm run dev` moved to port 3001 so it can run next to the production service.
+### Data protection
+- Settings → Your data:
+  - back up now; daily automatic backups (keep 7/14/30)
+  - raw-response retention
+  - full CSV export; daily-summary download
+  - delete everything (password + DELETE; revokes Google; secure_delete + VACUUM; removes backups, exports and logs)
+- `npm run data -- backup | list | verify | restore | export | retention | delete-all`. Restore verifies, stops the service, keeps a safety copy and restarts. Verified on real data.
+- Retention after each sync: raw API responses 90 days (default), sync history 90 days, exports 7 days. Measurements are never pruned.
+- `disconnectProvider` shared by Settings and delete-all.
 ### Added
 - 9 metric pages for Google data that was stored but not shown:
   - breathing rate in deep, light and REM sleep

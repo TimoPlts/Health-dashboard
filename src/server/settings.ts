@@ -11,8 +11,12 @@ export interface AppSettings {
   profileAge: number | null;
   /** Minutes between automatic syncs while the server runs; 0 = off. */
   autoSyncMinutes: number;
+  /** Days to keep raw API responses (a re-processing cache, not needed for any page); 0 = forever. */
+  rawRetentionDays: number;
+  /** Number of daily automatic backups to keep; 0 = no automatic backups. */
+  backupKeep: number;
 }
-const DEFAULTS: AppSettings = { sleepNeedMin: DEFAULT_SLEEP_NEED_MIN, hrMaxOverride: null, profileAge: null, autoSyncMinutes: 30 };
+const DEFAULTS: AppSettings = { sleepNeedMin: DEFAULT_SLEEP_NEED_MIN, hrMaxOverride: null, profileAge: null, autoSyncMinutes: 30, rawRetentionDays: 90, backupKeep: 14 };
 
 export function getSettings(db: DB): AppSettings {
   const rows = db.select().from(t.settings).all();

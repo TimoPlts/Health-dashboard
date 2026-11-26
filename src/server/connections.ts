@@ -3,7 +3,7 @@ import type { DB } from "./db/client";
 import { providerConnections } from "./db/schema";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { env, requireSecret } from "./env";
-import { OAuthError, refreshAccessToken, type GoogleOAuthConfig, type TokenSet } from "./providers/google/oauth";
+import { OAuthError, refreshAccessToken, revokeToken, type GoogleOAuthConfig, type TokenSet } from "./providers/google/oauth";
 
 export type Provider = "google" | "hevy";
 
@@ -83,4 +83,18 @@ export function getHevyApiKey(db: DB): string | undefined {
 
 export function disconnect(db: DB, provider: Provider) {
   upsert(db, provider, { status: "disconnected", encAccessToken: null, encRefreshToken: null, encApiKey: null, accessExpiresAt: null, lastError: null });
+}
+
+/**
+ * Disconnect a provider: revoke Google's grant (best effort, so access does not linger at Google), then erase the
+ * stored credentials. Imported data is kept unless deleted separately.
+ */
+export async function disconnectProvider(db: DB, provider: Provider): Promise<{ revoked: boolean }> {
+  const conn = getConnection(db, provider);
+  let revoked = false;
+  if (provider === "google" && conn?.encRefreshToken) {
+    try { await revokeToken(decryptSecret(conn.encRefreshToken, requireSecret("ENCRYPTION_KEY"))); revoked = true; } catch { revoked = false; }
+  }
+  disconnect(db, provider);
+  return { revoked };
 }

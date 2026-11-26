@@ -24,7 +24,8 @@
     "probe:hevy": "tsx scripts/probe-hevy.ts",
     "sync": "tsx scripts/sync.ts",
     "configure": "tsx scripts/configure.ts",
-    "backup": "tsx scripts/backup.ts",
+    "backup": "tsx scripts/data.ts backup",
+    "data": "tsx scripts/data.ts",
     "predev": "tsx scripts/configure.ts init"
   },
   "dependencies": {

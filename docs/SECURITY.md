@@ -12,8 +12,8 @@ Everything sensitive is in a private runtime folder **outside the repository and
 Baseline\
   config.env      secrets: APP_PASSWORD_HASH, SESSION_SECRET, ENCRYPTION_KEY, GOOGLE_CLIENT_ID/SECRET
   data\baseline.db   health database (OAuth tokens + Hevy key inside, AES-256-GCM encrypted)
-  backups\        `npm run backup`
-  exports\        personal exports (planned)
+  backups\        manual, daily automatic and pre-restore backups
+  exports\        personal exports (CSV), deleted after 7 days
   probe-output\   real-data structure reports
   logs\           server logs (supervisor + Next; counts/statuses only), 14 days
   server-status.json  supervisor state (pids, restarts; no health data)
@@ -45,9 +45,28 @@ Baseline\
 - Demo database `data/demo.db` is fictional and may live in the repo (git-ignored).
 - Backups require `ENCRYPTION_KEY` to decrypt stored tokens: keep a copy of `config.env` in your password manager, not in OneDrive.
 
-## Backup / restore / deletion
-- Backup: `npm run backup` → `Baseline\backups\`. Restore: stop the app, copy the file to `Baseline\data\baseline.db`.
-- Delete everything: stop the app, delete `%LOCALAPPDATA%\Baseline`, revoke at https://myaccount.google.com/permissions, rotate the Hevy key. In-app export/delete is planned.
+## Your data: backup, restore, export, retention, deletion
+Everything below stays in `BASELINE_HOME`, outside OneDrive and Git. Settings → **Your data** in the app, or `npm run data -- …` on the PC.
+
+| Action | How | Notes |
+|---|---|---|
+| Back up | Settings → Back up now · `npm run backup` | SQLite online backup, consistent while the server runs → `backups\baseline-<time>-manual.db` |
+| Automatic backups | daily after a sync; keep 7 / 14 (default) / 30, or off | only automatic backups are pruned; manual and pre-restore backups stay until you delete them |
+| Verify | `npm run data -- verify <backup>` | integrity check, required tables, row counts |
+| Restore | `npm run data -- restore <backup>` (PC only) | verifies the backup, stops the service (waits for a sync), keeps a `pre-restore` safety copy, swaps the database, applies migrations, starts again. Verified end to end on the owner's data on 2026-11-26 |
+| Export | Settings → Export · `npm run data -- export` | one CSV per table, plus `daily_summary.csv`, README and manifest → `exports\baseline-export-<time>\`. Deleted after 7 days. Credentials and raw API responses are not exported. Spreadsheet formulas are neutralised |
+| Daily summary | Settings → Download | one CSV, every metric per day; works on the iPhone |
+| Disconnect a provider | Settings → Connections → Disconnect | revokes Baseline's Google grant and erases stored tokens; imported data is kept |
+| Delete everything | Settings → Delete all data (password + type DELETE) · `npm run data -- delete-all` | revokes Google, erases every table with `secure_delete` then VACUUM + WAL truncate, deletes backups, exports, probe output and logs. `config.env` stays so you can sign in |
+
+**Retention** (applied after each sync, `src/server/data/retention.ts`). The defaults never lose a measurement:
+- Measurements, sleep, workouts and daily values: kept until you delete them.
+- Raw API responses (a re-processing cache): 90 days by default (30 / 90 / 365 / forever).
+- Sync history: 90 days. Exports: 7 days. Server logs: 14 days.
+
+Backups contain health data in plain SQLite, protected by the folder's user-only ACL. Provider tokens inside them are encrypted with `ENCRYPTION_KEY`. Keep a copy of `config.env` in your password manager, not in OneDrive, or restored tokens cannot be decrypted; you would then just reconnect Google.
+
+**Remove Baseline completely:** `npm run data -- delete-all`, `npm run service -- uninstall`, `npm run configure -- tailscale-off`, then delete `%LOCALAPPDATA%\Baseline`. Optionally also check https://myaccount.google.com/permissions.
 
 ## Future always-on server
 Set `BASELINE_HOME` (e.g. `/var/lib/baseline`) or inject the same keys as real environment variables. Nothing else changes.

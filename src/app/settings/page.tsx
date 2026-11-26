@@ -8,7 +8,8 @@ import { serverStatus } from "@/server/server-status";
 import { Badge, Glass, LargeTitle, Page, SectionHeader } from "@/ui/kit";
 import { fmtRelative } from "@/ui/format";
 import { SyncStatus } from "@/ui/SyncStatus";
-import { ConnectGoogle, DisconnectButton, HevyKeyForm, LogoutButton, PrefsForm } from "./actions";
+import { ConnectGoogle, DataControls, DisconnectButton, HevyKeyForm, LogoutButton, PrefsForm } from "./actions";
+import { listBackups } from "@/server/data/backup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings · Baseline" };
@@ -40,6 +41,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const errors = o.streams.filter((x) => x.lastError).length;
   const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: e.HOME_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
   const srv = serverStatus();
+  const backups = isDemoMode() ? [] : listBackups();
 
   return (
     <Page>
@@ -47,6 +49,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       {sp.welcome && <Glass className="mb-4 p-4 text-[14px]" as="div"><strong>Welcome to Baseline.</strong> Connect Google Health to import your Fitbit Air data.</Glass>}
       {sp.error && <Glass className="mb-4 p-4 text-[14px] text-danger" as="div">{sp.error}</Glass>}
+      {sp.deleted && <Glass className="mb-4 p-4 text-[14px] text-ok" as="div">All Baseline data was deleted and Google access was revoked.</Glass>}
       {sp.connected && <Glass className="mb-4 p-4 text-[14px] text-ok" as="div">Connected. The initial import runs in the background.</Glass>}
       {isDemoMode() && <Glass className="mb-4 p-4 text-[14px] text-warn" as="div">Demo mode uses a separate database with fictional data. Connections are disabled.</Glass>}
 
@@ -97,6 +100,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <p className="mt-2 text-[13px] text-ink-3">Not required. Without it, workouts come from Google Health (Fitbit + Hevy&apos;s Apple Health entries).</p>
           <div className="mt-3">{hevyConnected && hevy ? <DisconnectButton provider="hevy" /> : <HevyKeyForm disabled={isDemoMode()} />}</div>
         </div>
+      </Glass>
+
+      <SectionHeader>Your data</SectionHeader>
+      <Glass className="overflow-hidden">
+        <DataControls lastBackupAt={backups[0]?.createdAt ?? null} backupCount={backups.length} backupKeep={s.backupKeep} rawRetentionDays={s.rawRetentionDays} disabled={isDemoMode()} />
       </Glass>
 
       <SectionHeader>Data streams</SectionHeader>
