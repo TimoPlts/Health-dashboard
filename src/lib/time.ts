@@ -1,0 +1,33 @@
+/** Civil date (YYYY-MM-DD) of an instant, preferring the provider-supplied UTC offset over a fallback zone. */
+export function civilDate(tMs: number, utcOffsetS: number | null | undefined, fallbackTimeZone: string): string {
+  if (utcOffsetS !== null && utcOffsetS !== undefined) {
+    return new Date(tMs + utcOffsetS * 1000).toISOString().slice(0, 10);
+  }
+  // en-CA formats as YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: fallbackTimeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(tMs));
+}
+
+/** UTC instants [start, end) of a civil day in an IANA zone. Correct on DST transition days (23 h / 25 h). */
+export function civilDayBounds(date: string, timeZone: string): [number, number] {
+  const start = zonedMidnight(date, timeZone);
+  const next = new Date(Date.parse(`${date}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return [start, zonedMidnight(next, timeZone)];
+}
+
+function zonedMidnight(date: string, timeZone: string): number {
+  const guess = Date.parse(`${date}T00:00:00Z`);
+  // Iterate twice: offset at the guess, then at the corrected instant (handles DST boundaries).
+  let t = guess - offsetMs(guess, timeZone);
+  t = guess - offsetMs(t, timeZone);
+  return t;
+}
+
+/** Offset of `timeZone` from UTC at instant `t`, in ms. */
+export function offsetMs(t: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(t));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return asUtc - Math.floor(t / 1000) * 1000;
+}
