@@ -1,0 +1,101 @@
+# Builds the iOS feasibility app (ios-poc/) on a free GitHub-hosted macOS runner (free for public repositories)
+# and produces sideloadable IPAs. Nothing is signed with an Apple certificate here: SideStore re-signs the app on the
+# iPhone with the owner's free Apple ID. No secrets are used. The iOS OAuth client ID is not a secret and comes from the
+# repository variable GOOGLE_IOS_CLIENT_ID (optional).
+name: iOS feasibility build
+
+on:
+  push:
+    branches: [ios-feasibility]
+    paths: ["ios-poc/**", ".github/workflows/ios-poc.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-poc
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: ios-poc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ios-poc/package-lock.json
+
+      - name: Select Xcode 26 (required by Capacitor 8)
+        run: |
+          ls -d /Applications/Xcode*.app
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
+          if [ -z "$X" ]; then echo "::error::No Xcode 26 on this runner image"; exit 1; fi
+          sudo xcode-select -s "$X/Contents/Developer"
+          xcodebuild -version
+
+      - run: npm ci
+
+      - name: Bundle web layer
+        env:
+          CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
+        run: |
+          printf 'export const BUILD = { number: "%s", commit: "%s", googleIosClientId: "%s" };\n' \
+            "$GITHUB_RUN_NUMBER" "${GITHUB_SHA::7}" "$CLIENT_ID" > src/build-config.ts
+          npm run typecheck
+          npm run build
+
+      - name: Generate and patch the Xcode project
+        env:
+          CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
+        run: |
+          npx cap add ios --packagemanager CocoaPods
+          if [ -n "$CLIENT_ID" ]; then export REVERSED_CLIENT_ID="com.googleusercontent.apps.${CLIENT_ID%.apps.googleusercontent.com}"; fi
+          bash native/patch-ios.sh
+          npx cap sync ios
+
+      - name: Archive without code signing
+        working-directory: ios-poc/ios/App
+        run: |
+          xcodebuild -quiet -workspace App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            MARKETING_VERSION="0.1.$GITHUB_RUN_NUMBER" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+          ls "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" | head -40
+
+      - name: Package IPAs (ad-hoc signature carries the entitlements SideStore should request)
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/ios-poc/build"; mkdir -p "$OUT"
+          SRC="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          package() { # <name> <entitlements> <healthkit flag>
+            local W="$RUNNER_TEMP/pkg-$1"; rm -rf "$W"; mkdir -p "$W/Payload"
+            cp -R "$SRC" "$W/Payload/App.app"
+            local A="$W/Payload/App.app"
+            /usr/libexec/PlistBuddy -c "Set :BaselineHealthKitTest $3" "$A/Info.plist"
+            if [ -d "$A/Frameworks" ]; then
+              find "$A/Frameworks" -maxdepth 1 \( -name '*.framework' -o -name '*.dylib' \) -print0 | xargs -0 -I{} codesign --force --sign - --timestamp=none {}
+            fi
+            codesign --force --sign - --timestamp=none --entitlements "$2" "$A"
+            codesign -d --entitlements - "$A" 2>/dev/null | head -20 || true
+            (cd "$W" && zip -qry "$OUT/$1.ipa" Payload)
+          }
+          package "Baseline-POC-$GITHUB_RUN_NUMBER" native/base.entitlements false
+          package "Baseline-POC-HealthKit-$GITHUB_RUN_NUMBER" native/healthkit.entitlements true
+          ls -la "$OUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baseline-poc-${{ github.run_number }}
+          path: ios-poc/build/*.ipa
+          retention-days: 30
+          if-no-files-found: error

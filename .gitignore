@@ -32,3 +32,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .claude/settings.local.json
+
+# iOS proof of concept (generated in CI)
+ios-poc/ios/
+ios-poc/www/main.js
+ios-poc/build/
+*.ipa

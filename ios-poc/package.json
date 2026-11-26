@@ -1,0 +1,26 @@
+{
+  "name": "baseline-ios-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Feasibility proof: a free, sideloadable Capacitor iOS app (SideStore) with local SQLite, Keychain, native Google OAuth (PKCE, no client secret) and background refresh.",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --format=esm --target=safari15 --outfile=www/main.js",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "8.1.1",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "8.0.5",
+    "@capacitor/core": "8.6.3",
+    "@capacitor/ios": "8.6.3",
+    "@capacitor/preferences": "8.0.1",
+    "@noble/hashes": "2.4.0",
+    "capacitor-secure-storage-plugin": "0.14.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.3",
+    "esbuild": "0.28.2",
+    "typescript": "^5.9.3"
+  }
+}
