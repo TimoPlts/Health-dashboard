@@ -15,7 +15,8 @@ Baseline\
   backups\        `npm run backup`
   exports\        personal exports (planned)
   probe-output\   real-data structure reports
-  logs\           reserved; the app writes no log files today
+  logs\           server logs (supervisor + Next; counts/statuses only), 14 days
+  server-status.json  supervisor state (pids, restarts; no health data)
 ```
 
 **Enforced, not just documented:** `assertSafeLocation()` (`src/server/runtime-home.ts`) refuses to open the database or write config, backups or probe reports inside a OneDrive folder (detected from `%OneDrive%`, `%OneDriveCommercial%`, `%OneDriveConsumer%` and by path name) or inside the repository. Unit-tested.
@@ -29,11 +30,13 @@ Baseline\
 ## Other controls
 | Control | Implementation |
 |---|---|
-| App login | scrypt password hash, HMAC-SHA256 signed session cookie (30 d, httpOnly, SameSite=Lax, Secure on HTTPS), 10 failures / 15 min brake |
-| Network exposure | dev/prod servers bind to **127.0.0.1** only. Remote access later through Tailscale HTTPS (`tailscale serve`), not by opening ports |
+| App login | scrypt password hash, HMAC-SHA256 signed session cookie (30 d sliding, httpOnly, SameSite=Lax, Secure when reached over HTTPS), 10 failures / 15 min brake |
+| Network exposure | dev/prod servers bind to **127.0.0.1** only. Remote access only through Tailscale Serve (tailnet-only HTTPS), never Funnel, no open ports. See [DEPLOYMENT](DEPLOYMENT.md) |
+| Tailnet gate | requests through Serve need a Tailscale identity (Funnel traffic has none → 403); `TAILNET_ALLOWED_LOGINS` restricts to the owner's login |
+| Caching | `Cache-Control: private, no-store` on every page and API response; no service worker, so no offline copy of health data on the phone |
 | Route protection | `src/proxy.ts` on every page/API. Handlers re-check. Mutations require same origin |
 | OAuth | Authorization Code + PKCE (S256) + state in an encrypted 10-min cookie. Read-only scopes. Disconnect revokes at Google |
-| Logs | Next dev request logging and browser-log forwarding disabled (request URLs can contain OAuth codes; `.next/dev/logs` sits in the synced repo). Sync errors sanitized. Probes print structure only |
+| Logs | Production logs go to `BASELINE_HOME\logs` only (see DEPLOYMENT). Next dev request logging and browser-log forwarding disabled (request URLs can contain OAuth codes; `.next/dev/logs` sits in the synced repo). Sync errors sanitized. Probes print structure only |
 | Repo | `.gitignore` excludes `.env*`, `data/*`, `*.db`, `probe-output/`, `screenshots/`. Fixtures are fictional. The GitHub repo is **public**, so audit before every push |
 | Third parties | no analytics, no AI services, no external scripts |
 

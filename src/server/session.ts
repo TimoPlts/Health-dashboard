@@ -25,6 +25,18 @@ export async function createSessionValue(secret: string, now = Date.now()): Prom
   return `${exp}.${b64url(sig)}`;
 }
 
+/** Expiry (ms) encoded in a session value, without verifying it. Use only after verifySessionValue succeeded. */
+export function sessionExpiresAt(value: string): number | null {
+  const exp = value.split(".")[0];
+  return exp && /^\d+$/.test(exp) ? Number(exp) : null;
+}
+
+/** Sliding sessions: a valid session with less than half its lifetime left is re-issued on the next request. */
+export const shouldRenewSession = (value: string, now = Date.now()) => {
+  const exp = sessionExpiresAt(value);
+  return exp !== null && exp - now < SESSION_TTL_MS / 2;
+};
+
 export async function verifySessionValue(value: string | undefined, secret: string | undefined, now = Date.now()): Promise<boolean> {
   if (!value || !secret) return false;
   const [exp, sig] = value.split(".");

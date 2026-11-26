@@ -248,6 +248,11 @@ body {
 ::view-transition-old(.tab-fade) { animation: 120ms ease-in both vt-fade reverse; }
 ::view-transition-new(.tab-fade) { animation: 200ms ease-out both vt-fade; }
 
+/* Loading state: appears only if a page takes > 150 ms, then breathes gently. */
+.loading-shell { animation: vt-fade 200ms ease-out 150ms both; }
+.skeleton { background: color-mix(in oklab, var(--ink) 7%, transparent); border-radius: 12px; animation: skeleton-pulse 1.6s ease-in-out infinite; }
+@keyframes skeleton-pulse { 50% { opacity: 0.55; } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }

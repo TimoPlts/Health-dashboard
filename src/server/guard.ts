@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { env } from "./env";
 import { SESSION_COOKIE, verifySessionValue } from "./session";
+import { sameOrigin } from "./request";
 
 export async function isAuthenticated(): Promise<boolean> {
   const jar = await cookies();
@@ -15,8 +16,7 @@ export async function isAuthenticated(): Promise<boolean> {
  */
 export async function guardMutation(req: Request): Promise<NextResponse | null> {
   if (!(await isAuthenticated())) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const origin = req.headers.get("origin");
-  if (origin && new URL(origin).host !== new URL(req.url).host) {
+  if (!sameOrigin(req)) {
     return NextResponse.json({ error: "cross-origin request rejected" }, { status: 403 });
   }
   return null;

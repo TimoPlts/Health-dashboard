@@ -4,6 +4,7 @@ import { getSyncOverview } from "@/server/queries";
 import { getSettings } from "@/server/settings";
 import { schedulerState } from "@/server/sync/scheduler";
 import { isSyncRunning } from "@/server/sync/run";
+import { serverStatus } from "@/server/server-status";
 import { Badge, Glass, LargeTitle, Page, SectionHeader } from "@/ui/kit";
 import { fmtRelative } from "@/ui/format";
 import { SyncStatus } from "@/ui/SyncStatus";
@@ -38,6 +39,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const hevyConnected = hevy?.status === "connected" || (!hevy && Boolean(e.HEVY_API_KEY));
   const errors = o.streams.filter((x) => x.lastError).length;
   const timeFmt = new Intl.DateTimeFormat("en-GB", { timeZone: e.HOME_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+  const srv = serverStatus();
 
   return (
     <Page>
@@ -55,6 +57,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <span className="text-ink-2">{isSyncRunning() ? "Running now" : sched.nextRunAt ? timeFmt.format(sched.nextRunAt) : s.autoSyncMinutes ? "After server start" : "Off"}</span></div>
         <div className="flex items-center justify-between px-4 py-3 text-[15px]"><span className="font-semibold">Data streams</span>
           <span>{errors ? <Badge tone="danger">{errors} with errors</Badge> : <Badge tone="ok">{o.streams.length} healthy</Badge>}</span></div>
+      </Glass>
+
+      <SectionHeader>Server</SectionHeader>
+      <Glass className="list overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 text-[15px]"><span className="font-semibold">Status</span>
+          <span>{srv.supervised ? <Badge tone="ok">Running · auto-restart</Badge> : <Badge>{srv.mode}</Badge>}</span></div>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 text-[15px]"><span className="font-semibold">Running since</span><span className="text-ink-2">{fmtRelative(srv.startedAt)}{srv.restarts ? ` · ${srv.restarts} restart${srv.restarts === 1 ? "" : "s"}` : ""}</span></div>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 text-[15px]"><span className="shrink-0 font-semibold">iPhone address</span>
+          <span className="min-w-0 truncate text-right text-ink-2">{srv.publicUrl ? srv.publicUrl.replace(/^https:\/\//, "") : "Not set up"}</span></div>
       </Glass>
 
       <SectionHeader>Personal</SectionHeader>

@@ -8,6 +8,16 @@
 - Daily totals: today is shown as "so far" and excluded from averages, comparisons and baselines.
 - Readiness: method choice documented (Kiviniemi; HRV above the band is not flagged). Code simplified.
 - Docs: zone systems, Zone 2 definition, load ring, EWMA seeding, energy error range, HR recovery, dormant strength metrics.
+### Deployment (iPhone via Tailscale, autostart)
+- Production server under a supervisor (`scripts/server.mjs`):
+  - restart on crash with backoff, health checks
+  - graceful stop that waits for a running sync
+  - logs in `BASELINE_HOME\logs` (14 days, size cap)
+- Windows Task Scheduler task "Baseline" (`npm run service -- install | deploy | status | logs …`): starts hidden at sign-in, or at boot with admin rights.
+- Tailnet-only HTTPS via Tailscale Serve (`npm run configure -- tailscale`). A tailnet identity gate refuses Funnel traffic, and an optional login allowlist restricts access to the owner.
+- Secure cookies over HTTPS, sliding 30-day sessions, `no-store` on all personal responses, HSTS.
+- `/api/health` (no data), loading state, PWA manifest id/scope/maskable icon, Server block in Settings.
+- `npm run dev` moved to port 3001 so it can run next to the production service.
 ### Added
 - 9 metric pages for Google data that was stored but not shown:
   - breathing rate in deep, light and REM sleep

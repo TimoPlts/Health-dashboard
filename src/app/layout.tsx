@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Baseline", statusBarStyle: "black-translucent" },
   robots: { index: false, follow: false },
   formatDetection: { telephone: false },
+  // Legacy iOS (< 17) home-screen flag; newer iOS reads mobile-web-app-capable + the manifest.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {

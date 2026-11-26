@@ -41,7 +41,7 @@ const noOverflow = async (page: import("@playwright/test").Page) => {
 
 test("today, sleep, health, metric detail and trends render with demo data", async ({ page }) => {
   await login(page);
-  await expect(page.getByRole("status")).toContainText("DEMO MODE");
+  await expect(page.getByRole("status").filter({ hasText: "DEMO MODE" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
   await expect(page.getByRole("img", { name: /^Recovery/ })).toBeVisible();
   await expect(page.getByText("Last night")).toBeVisible();

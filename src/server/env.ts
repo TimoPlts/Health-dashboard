@@ -12,6 +12,9 @@ const schema = z.object({
   SESSION_SECRET: z.string().optional(),
   ENCRYPTION_KEY: z.string().optional(),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
+  /** HTTPS address on the tailnet (Tailscale Serve), e.g. https://<pc>.<tailnet>.ts.net. Not used for OAuth. */
+  PUBLIC_URL: z.string().url().optional(),
+  TAILNET_ALLOWED_LOGINS: z.string().optional(),
   HOME_TIME_ZONE: z.string().default("Europe/Brussels"),
   DATABASE_PATH: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),

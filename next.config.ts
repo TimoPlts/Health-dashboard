@@ -16,7 +16,15 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // Only honoured over HTTPS (Tailscale Serve); browsers ignore it on http://localhost.
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
         ],
+      },
+      {
+        // Health data must never be stored by the browser, the iOS web-app cache or any proxy.
+        // Hashed build assets (/_next/static) and the icons stay cacheable; they contain no personal data.
+        source: "/((?!_next/static|_next/image|icon|apple-icon|manifest.webmanifest|favicon.ico).*)",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
       },
     ];
   },

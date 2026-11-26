@@ -30,13 +30,17 @@ async function tick() {
   if (!minutes) { s.nextRunAt = null; s.timer = setTimeout(tick, 5 * 60_000); s.timer.unref?.(); return; } // re-check setting later
   s.nextRunAt = null;
   let status = "success", authError = false;
+  const t0 = Date.now();
+  // Server log (BASELINE_HOME/logs via the supervisor): warnings + one summary line. Counts and statuses only.
+  const log = { info: () => {}, warn: (m: string) => console.warn(`[sync] ${m}`) };
   try {
-    const out = (await syncAll(db(), "scheduled")) as Record<string, { status?: string; results?: { error?: string }[] }>;
+    const out = (await syncAll(db(), "scheduled", log)) as Record<string, { status?: string; results?: { error?: string }[]; skipped?: boolean }>;
     const statuses = Object.values(out).map((r) => r?.status).filter(Boolean) as string[];
     status = statuses.includes("failed") ? "failed" : statuses.includes("partial") ? "partial" : "success";
     authError = Object.values(out).some((r) => r?.results?.some((x) => /OAuth|HTTP 401|HTTP 403/.test(x.error ?? "")));
-  } catch { status = "failed"; }
+  } catch (e) { status = "failed"; console.warn(`[sync] scheduled sync threw: ${(e as Error).message?.slice(0, 200)}`); }
   s.lastResult = status;
+  console.log(`[sync] scheduled sync ${status} in ${Math.round((Date.now() - t0) / 1000)} s`);
   if (status === "success" || authError) { s.failures = 0; schedule(minutes * 60_000); }
   else { s.failures++; schedule(Math.min(minutes, 2 ** s.failures) * 60_000); }
 }

@@ -7,6 +7,8 @@
  *   npm run configure -- init    non-interactive: create the runtime folder + generated secrets only
  *   npm run configure -- status  show what is configured (never prints secret values)
  *   npm run configure -- password | google     (re)set one item
+ *   npm run configure -- tailscale              private HTTPS on your tailnet (Tailscale Serve; never Funnel)
+ *   npm run configure -- tailscale-off          stop serving Baseline on the tailnet
  *
  * Google client: either paste ID + secret into hidden prompts, or download the client JSON from the
  * Google console — this script finds client_secret_*.json in Downloads, imports it, and deletes it.
@@ -26,7 +28,7 @@ function readConfig(): Record<string, string> {
   return existsSync(P.configFile) ? parseEnvFile(readFileSync(P.configFile, "utf8")) : {};
 }
 
-const ORDER = ["APP_PASSWORD_HASH", "SESSION_SECRET", "ENCRYPTION_KEY", "APP_BASE_URL", "HOME_TIME_ZONE", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "BACKFILL_DAYS"];
+const ORDER = ["APP_PASSWORD_HASH", "SESSION_SECRET", "ENCRYPTION_KEY", "APP_BASE_URL", "PUBLIC_URL", "TAILNET_ALLOWED_LOGINS", "HOME_TIME_ZONE", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "BACKFILL_DAYS"];
 
 function writeConfig(c: Record<string, string>) {
   assertSafeLocation(P.configFile);
@@ -147,6 +149,57 @@ async function setGoogle(c: Record<string, string>) {
   console.log("  ✓ Google OAuth client saved.");
 }
 
+// ---- Tailscale (private HTTPS for the iPhone) -------------------------------------------------------------------
+const APP_PORT = 3000;
+function tailscaleExe(): string | null {
+  const candidates = process.platform === "win32" ? ["tailscale", "C:\\Program Files\\Tailscale\\tailscale.exe"] : ["tailscale"];
+  for (const c of candidates) if (spawnSync(c, ["version"], { encoding: "utf8" }).status === 0) return c;
+  return null;
+}
+function ts(exe: string, args: string[]) {
+  const r = spawnSync(exe, args, { encoding: "utf8" });
+  return { ok: r.status === 0, out: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim() };
+}
+
+/**
+ * Sets PUBLIC_URL (https://<this-pc>.<tailnet>.ts.net) and TAILNET_ALLOWED_LOGINS (the Tailscale user logged in on
+ * this PC), then publishes 127.0.0.1:3000 on the tailnet with `tailscale serve --https=443`. Never uses Funnel.
+ * The login is written to config.env but not printed.
+ */
+function setupTailscale(c: Record<string, string>) {
+  const exe = tailscaleExe();
+  if (!exe) { console.log("  Tailscale CLI not found. Install Tailscale for Windows first."); return; }
+  const st = ts(exe, ["status", "--json"]);
+  if (!st.ok) { console.log(`  tailscale status failed: ${st.out.slice(0, 200)}`); return; }
+  const j = JSON.parse(st.out) as { BackendState?: string; Self?: { DNSName?: string; UserID?: number }; User?: Record<string, { LoginName?: string }>; CertDomains?: string[] | null };
+  if (j.BackendState !== "Running") { console.log(`  Tailscale is not connected (state: ${j.BackendState}). Sign in to Tailscale and retry.`); return; }
+  const dns = (j.Self?.DNSName ?? "").replace(/\.$/, "");
+  if (!dns.endsWith(".ts.net")) { console.log("  MagicDNS is off. Enable it in the Tailscale admin console (DNS page) and retry."); return; }
+  const login = j.User?.[String(j.Self?.UserID)]?.LoginName;
+  c.PUBLIC_URL = `https://${dns}`;
+  if (login) c.TAILNET_ALLOWED_LOGINS = login;
+  writeConfig(c);
+  console.log(`  ✓ PUBLIC_URL = ${c.PUBLIC_URL}`);
+  console.log(`  ✓ Access limited to ${login ? "your Tailscale login (TAILNET_ALLOWED_LOGINS)" : "any tailnet identity (login not found)"}`);
+  if (!j.CertDomains?.length) {
+    console.log("\n  HTTPS certificates are not enabled for your tailnet yet.");
+    console.log("  → Tailscale admin console → DNS → 'HTTPS Certificates' → Enable. Then run this command again.");
+    return;
+  }
+  // `serve` (not `funnel`) is reachable only from devices in your tailnet.
+  const r = ts(exe, ["serve", "--bg", "--https=443", `http://127.0.0.1:${APP_PORT}`]);
+  console.log(r.ok ? "  ✓ Tailscale Serve: tailnet-only HTTPS → 127.0.0.1:3000" : `  ✗ tailscale serve failed: ${r.out.slice(0, 300)}`);
+  console.log(`\n${ts(exe, ["serve", "status"]).out}`);
+  const funnel = ts(exe, ["funnel", "status"]).out;
+  if (/funnel on/i.test(funnel)) console.log("\n  ! Tailscale Funnel is ON for something on this PC. Baseline refuses Funnel traffic, but check `tailscale funnel status`.");
+  console.log(`\n  On your iPhone (Tailscale app connected): open ${c.PUBLIC_URL} in Safari → Share → Add to Home Screen.`);
+}
+function tailscaleOff() {
+  const exe = tailscaleExe();
+  if (!exe) return;
+  console.log(ts(exe, ["serve", "--https=443", "off"]).ok ? "  ✓ Baseline is no longer served on the tailnet." : "  Nothing was being served.");
+}
+
 function status(c: Record<string, string>) {
   const mark = (k: string) => (c[k] ? "✓ set" : "✗ missing");
   console.log(`Baseline runtime folder: ${P.home}`);
@@ -154,6 +207,8 @@ function status(c: Record<string, string>) {
   console.log(`  database              ${existsSync(P.database) ? P.database : "(created on first start)"}`);
   for (const k of ["APP_PASSWORD_HASH", "SESSION_SECRET", "ENCRYPTION_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]) console.log(`  ${k.padEnd(21)} ${mark(k)}`);
   console.log(`  Hevy API key          entered in the app (Settings), stored encrypted in the database`);
+  console.log(`  PUBLIC_URL            ${c.PUBLIC_URL ?? "(not set — run: npm run configure -- tailscale)"}`);
+  console.log(`  TAILNET_ALLOWED_LOGINS ${c.TAILNET_ALLOWED_LOGINS ? "✓ set" : "not set (any tailnet user who knows the password)"}`);
   const leaked = secretsInRepoEnvFiles();
   if (leaked.length) console.log(`  ! Secrets in repo env files: ${leaked.join(", ")} — delete them.`);
 }
@@ -161,6 +216,8 @@ function status(c: Record<string, string>) {
 const c = init();
 if (mode === "init") { console.log(`Initialised ${P.home}`); status(c); process.exit(0); }
 if (mode === "status") { status(c); process.exit(0); }
+if (mode === "tailscale") { setupTailscale(c); process.exit(0); }
+if (mode === "tailscale-off") { tailscaleOff(); process.exit(0); }
 if (mode === "password" || (mode === "interactive" && !c.APP_PASSWORD_HASH)) { console.log("\nApp password — used to sign in to Baseline:"); await setPassword(c); }
 if (mode === "google" || (mode === "interactive" && (!c.GOOGLE_CLIENT_ID || !c.GOOGLE_CLIENT_SECRET))) {
   if (mode === "interactive") {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/server/env";
 import { verifyPassword } from "@/server/crypto";
 import { createSessionValue, SESSION_COOKIE, SESSION_TTL_MS } from "@/server/session";
+import { viaHttps } from "@/server/request";
 
 // Naive in-process brute-force brake (single-user app, single process).
 const failures: number[] = [];
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   res.cookies.set(SESSION_COOKIE, await createSessionValue(e.SESSION_SECRET), {
     httpOnly: true,
     sameSite: "lax",
-    secure: e.APP_BASE_URL.startsWith("https://"),
+    secure: viaHttps(req) || e.APP_BASE_URL.startsWith("https://"),
     path: "/",
     maxAge: SESSION_TTL_MS / 1000,
   });
