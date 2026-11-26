@@ -54,9 +54,11 @@ export function sleepScore(i: { minutesAsleep: number | null; efficiencyPct: num
  * 100 = perfectly regular, 0 = random. Input: asleep intervals (non-AWAKE stages) and the analysed span.
  * Assumption: outside recorded sleep the wearer is awake (daytime sleep is only known if Google records a nap).
  * Requires ≥ 5 recorded nights in the span; days the device was not worn at night lower validity and are excluded
- * via `nightDates` (only pairs where both nights were recorded are compared).
+ * via `dayStarts` (only pairs where both nights were recorded are compared).
+ * sleep-sri@2: callers pass NOON-TO-NOON windows (local noon before each wake date), so each 24 h window contains exactly
+ * one night. With midnight windows the evening of day d compared against the start of an unrecorded night d+2.
  */
-export const SRI_VERSION = "sleep-sri@1";
+export const SRI_VERSION = "sleep-sri@2";
 export function sleepRegularityIndex(asleep: { startMs: number; endMs: number }[], dayStarts: number[]) {
   if (dayStarts.length < 5) return null;
   const MIN = 60_000, DAY = 86_400_000;

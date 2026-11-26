@@ -68,7 +68,21 @@ export function chooseHrMax(o: { override?: number | null; age?: number | null }
  * Balance = chronic − acute (Banister fitness–fatigue idea; positive = fresher than usual).
  * Calibration: needs ≥ 21 tracked days within the last 28 before the ratio is reported.
  */
-export const ACWR_VERSION = "acwr-ewma@1";
+export const ACWR_VERSION = "acwr-ewma@2";
+
+/**
+ * Which daily loads count as "tracked" for ACWR (acwr-ewma@2):
+ *  - the current civil day is incomplete, so it is left out (its partial load would pull the acute EWMA down every
+ *    morning); the ratio therefore describes the state after the last complete day;
+ *  - a day counts only if heart rate covered ≥ 10 h (600 min). Shorter wear would record artificially low load.
+ *    10 h is the conventional valid-day criterion for wearable/accelerometer data (Troiano et al. 2008 MSSE 40:181).
+ * Anything else is a gap (null), never zero load.
+ */
+export const LOAD_MIN_WORN_MIN = 600;
+export function trackedLoad(load: number | null, wornMin: number | null, isComplete: boolean): number | null {
+  if (!isComplete || load === null || wornMin === null || wornMin < LOAD_MIN_WORN_MIN) return null;
+  return load;
+}
 export type AcwrBand = "low" | "optimal" | "caution" | "high";
 
 export function acwr(daily: (number | null)[], minTrackedDays = 21) {

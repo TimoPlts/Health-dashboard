@@ -61,3 +61,36 @@ describe("metric series & detail", () => {
     expect(metricSeries(db, METRIC_BY_ID.get("recovery")!, "2026-03-01", "2026-03-05", FB).size).toBe(0);
   });
 });
+
+describe("audit 2026-11: partial days and newly exposed Google data", () => {
+  it("today's partial total is shown but left out of averages, comparisons and baselines", () => {
+    const today = new Date(Date.now() + FB * 1000).toISOString().slice(0, 10);
+    const day = (o: number) => new Date(Date.parse(`${today}T00:00:00Z`) + o * 86_400_000).toISOString().slice(0, 10);
+    const b = emptyBatch();
+    for (const [o, v] of [[-2, 10000], [-1, 8000], [0, 500]] as const) {
+      const s = Date.parse(`${day(o)}T08:00:00Z`);
+      b.obs.push({ source: fitbit, dataType: "steps", startMs: s, endMs: s + 60_000, variant: "", utcOffsetS: FB, value: v, unit: "count" });
+    }
+    writeBatch(db, b, null);
+    const d = metricDetail(db, "steps", "7d", today, FB)!;
+    expect(d.latest).toMatchObject({ date: today, value: 500, partial: true });
+    expect(d.period).toMatchObject({ value: 9000, days: 2 });
+    expect(d.points.at(-1)).toMatchObject({ value: 500, partial: true });
+    // Non-additive metrics are complete as soon as they exist.
+    daily("resting_hr", today, 55);
+    expect(metricDetail(db, "resting_hr", "7d", today, FB)!.latest!.partial).toBe(false);
+  });
+  it("night samples are attributed to the wake date even when the night crosses midnight", () => {
+    const b = emptyBatch();
+    const start = Date.parse("2026-03-01T22:00:00Z"), end = Date.parse("2026-03-02T06:00:00Z");
+    b.sleep.push({ source: fitbit, id: "n1", startMs: start, endMs: end, startOffsetS: FB, endOffsetS: FB, sleepType: "STAGES", isMain: true, isNap: false,
+      stagesStatus: "SUCCEEDED", updatedAt: end, stages: [], summary: { minutesAsleep: "450" } });
+    for (const [t, deep] of [[start + 30 * 60_000, 13], [end - 60 * 60_000, 15]] as const)
+      b.obs.push({ source: fitbit, dataType: "respiratory-rate-sleep-summary", startMs: t, endMs: t, variant: "", utcOffsetS: FB, value: 14, unit: "breaths/min", attrs: { deep } });
+    b.daily.push({ source: fitbit, metric: "spo2_avg", date: "2026-03-02", value: 96, unit: "%", attrs: { lower: 92.5 } });
+    writeBatch(db, b, null);
+    const resp = metricSeries(db, METRIC_BY_ID.get("resp_deep")!, "2026-03-01", "2026-03-02", FB);
+    expect([...resp]).toEqual([["2026-03-02", 14]]);
+    expect(metricSeries(db, METRIC_BY_ID.get("spo2_low")!, "2026-03-01", "2026-03-02", FB).get("2026-03-02")).toBe(92.5);
+  });
+});

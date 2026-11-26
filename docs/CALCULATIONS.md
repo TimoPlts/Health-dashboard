@@ -1,7 +1,7 @@
 # Calculations
 
 Priority order: (1) provider originals → (2) published reproducible methods → (3) published alternatives → (4) clearly labelled app estimates.
-Every calculation is a pure, versioned function in `src/lib/metrics/` with tests in `tests/unit/metrics.test.ts`.
+Every calculation is a pure, versioned function in `src/lib/metrics/` with tests in `tests/unit/metrics.test.ts` and `tests/unit/analytics.test.ts`. The audit of 2026-11-26 is summarised in [FEATURE_AUDIT.md §3](FEATURE_AUDIT.md).
 Raw data is kept, so any metric can be recalculated when a version changes. **Nothing here is medically validated by us.**
 
 ---
@@ -13,17 +13,23 @@ Raw data is kept, so any metric can be recalculated when a version changes. **No
 - **Missing data:** no samples → all values `null`, coverage 0. Gaps are never interpolated. UI warns when coverage < 80 %.
 - **Units:** bpm, s. **Limitations:** the cap is a heuristic. Optical wrist HR lags and is less accurate during resistance training (grip, wrist flexion).
 
-### HR-ZONES · `hr-zones@1` (`timeInZones`, `timeInBands`, `zoneBoundsBpm`)
-- **Provider zones first:** Google `daily-heart-rate-zones` (LIGHT/MODERATE/VIGOROUS/PEAK, Karvonen-based) for the workout’s civil day.
-- **Custom (HRR / Karvonen):** bound(p) = HRrest + p·(HRmax − HRrest); Z1 50–60 %, Z2 60–70 %, Z3 70–80 %, Z4 80–90 %, Z5 ≥ 90 %. Ref: Karvonen et al. 1957; ACSM Guidelines 11th ed.
-- **HRmax** default when unknown: Tanaka 2001 `208 − 0.7·age` (population estimate, ±10 bpm SD). A measured HRmax is preferred (settings, planned).
-- **Time:** same gap-capped weights as HR-STATS. **Units:** s.
+### HR-ZONES · Google zones (provider) and %HRmax zones (Baseline)
+Baseline shows two zone systems. They answer different questions and are always labelled.
+- **Google zones** (`timeInBands`, `daily-heart-rate-zones`, `time-in-heart-rate-zone`): LIGHT / MODERATE / VIGOROUS / PEAK.
+  - Bounds are verified on real data: 40 / 60 / 85 % of heart-rate reserve with HRmax = 220 − age.
+  - These drive Active Zone Minutes and are shown on workout pages and as daily metrics.
+- **Baseline zones** (LOAD-ZONES below): Z1–Z5 by %HRmax, used for Edwards TRIMP and Zone 2.
+- `timeInZones` / `zoneBoundsBpm` (Karvonen Z1–Z5) exist in `heart-rate.ts` but are **not used** by any page. `estimateMaxHrTanaka` is likewise unused; HRmax comes from HRMAX below.
+- **Time:** gap-capped weights as in HR-STATS. **Units:** s / min.
 
-### HR-RECOVERY · inline in `queries.ts`
+### HR-RECOVERY · `workouts.ts → workoutDetail`
 - HRR60 = HR(end) − HR(end + 60 s); HRR120 likewise. Each instant uses the nearest sample within ±10 s; if none → `null`.
-- Ref: Cole et al. 1999 NEJM 341:1351. **Limitation:** Hevy “end” is when you tapped Finish, not the last set. Treat as indicative.
+- "End" is the end of the grouped Google exercise session(s).
+- Ref: Cole et al. 1999 NEJM 341:1351.
+- **Limitation:** auto-detected and Apple-Health-imported sessions end when the device or app decided the workout ended, not at the last effort. A cool-down walk inside the session lowers HRR. Treat it as indicative and compare only like with like.
 
-### LOAD-TRIMP · `trimp-banister@1` (`training-load.ts → banisterTrimp`)
+### LOAD-TRIMP · `trimp-banister@1` (`training-load.ts → banisterTrimp`) · **not used**
+Kept for reference only. It needs sex, which Google's profile does not provide; Baseline uses Edwards TRIMP (LOAD-EDWARDS).
 - TRIMP = Σ Δt[min] · HRr · 0.64 · e^(k·HRr), HRr = (HR − HRrest)/(HRmax − HRrest) clamped to [0, 1]; k = 1.92 male, 1.67 female.
 - Ref: Banister 1991; Morton, Fitz-Clarke & Banister 1990. **Missing:** gap-capped like HR-STATS; coverage returned.
 - **Limitation:** heart rate under-represents resistance-training load (short sets, long rests). It is never presented as a measure of muscular fatigue.
@@ -31,6 +37,9 @@ Raw data is kept, so any metric can be recalculated when a version changes. **No
 ### LOAD-EWMA · `ewma-load@1` (`ewmaLoad`)
 - λ = 2/(N+1); acute N = 7, chronic N = 28; balance = chronic − acute. Ref: Williams et al. 2017 BJSM 51:209.
 - **Missing:** `null` days (untracked) carry the previous EWMA and are flagged `gap`; only truly tracked rest days are 0.
+- **Seeding:** both EWMAs start at the first tracked day's load. Early values are therefore weighted toward that day. After 21 tracked days the first day still carries about 24 % of EWMA₂₈'s weight, which is why ACWR is only reported after 21 tracked days.
+
+> **STR-\* are dormant.** They need Hevy set data, which requires Hevy Pro; Hevy is out of scope ([ADR-0005](adr/0005-workouts-from-google.md)). The functions and tests are kept for a possible future import.
 
 ### STR-E1RM · `e1rm-epley@1` (`strength.ts → estimateOneRepMax`)
 - 1RM = w·(1 + reps/30); reps = 1 → w. Valid for 1–12 reps, else `null`; warm-ups excluded. Alt: Brzycki w·36/(37 − reps).
@@ -64,29 +73,41 @@ Raw data is kept, so any metric can be recalculated when a version changes. **No
 - Inputs: all-day Fitbit heart-rate samples (3 s resolution) per civil day. Cached in `derived_daily` (`load_trimp`, `zone1..5_min`, `hr_worn_min`), recomputed after every sync.
 - **Missing data:** gap-capped at 30 s per sample, as in HR-STATS. Days without samples get no row. `coverage` is stored with each value.
 - **Why Edwards, not Banister:** it is sex-neutral (Google's profile has no sex field) and needs only HRmax. **Limitation:** it under-represents resistance-training load, as with any HR-based method.
-- **Zone 2** = Z1-index 2 (60–70 % HRmax), shown as minutes per day.
+- **Zone 2** = Z2 of this model (60–70 % HRmax), shown as minutes per day.
+  - This is the 5-zone %HRmax convention (Edwards; Polar), not a lactate- or ventilatory-threshold Zone 2. Physiological Zone 2 (below the first lactate threshold) varies between people and is often 65–75 % HRmax in trained individuals.
+  - Without a lab test, Baseline cannot locate your threshold. A measured HRmax (Settings) improves the estimate.
+- **All-day load:** Z1 starts at 50 % HRmax (≈ 95 bpm for a 30-year-old), so brisk walking and stairs accrue load. That is part of Edwards' method; load is not workout-only.
 - **"Cardio load" (strain) in the UI** = daily Edwards TRIMP. It is never scaled to a 0–21 range or called WHOOP strain.
+  - The Today ring is **not a target**: it is full at twice your current 7-day average daily load (minimum 120). Today's value is labelled "so far" until the day is complete.
 
-### LOAD-ACWR · `acwr-ewma@1` (`load.ts → acwr`)
+### LOAD-ACWR · `acwr-ewma@2` (`load.ts → acwr`, `trackedLoad`)
 - ACWR = EWMA₇ / EWMA₂₈ of daily TRIMP (Williams et al. 2017 BJSM 51:209).
 - Bands follow Gabbett 2016 BJSM 50:273: < 0.8 low, 0.8–1.3 optimal, 1.3–1.5 caution, > 1.5 high.
-- Training balance = EWMA₂₈ − EWMA₇.
-- **Calibration:** reported only after ≥ 21 tracked days in the last 28. Untracked days are gaps, not zeros.
+- Training balance = EWMA₂₈ − EWMA₇. It has the form of Coggan's training stress balance (fitness − fatigue), but with 28/7-day constants and Edwards TRIMP. It is an app convention, not TSB.
+- **Tracked days (v2):**
+  - The current, incomplete day is excluded: its partial load used to pull the acute EWMA down every morning. The ratio describes the state after the last complete day.
+  - A day counts only with ≥ 10 h of heart-rate coverage. This is the conventional valid-day criterion for wearable data (Troiano et al. 2008 MSSE 40:181). Shorter wear would record artificially low load.
+  - Other days are gaps, not zeros.
+- **Calibration:** reported only after ≥ 21 tracked days in the last 28.
 - **Limitation:** ACWR is a descriptive load signal. Its link with injury risk is debated (Impellizzeri et al. 2020), and Baseline does not present it as an injury predictor.
 
 ### REC-BASE · `baseline-rolling@1` via `recovery.ts → hrvBaseline / rhrBaseline`
 - Window: the previous 28 days, excluding today. At least 14 values are needed; until then the status is `calibrating (have/14)`. HRV uses ln(rMSSD) (Plews et al. 2013).
 - Inputs are Google's own nightly values (`daily-heart-rate-variability.averageHeartRateVariabilityMilliseconds`, `daily-resting-heart-rate`). Baseline does not recompute them.
 
-### REC-INDEX · `recovery@1` (`recovery.ts → recoveryIndex`)
+### REC-INDEX · `recovery@2` (`recovery.ts → recoveryIndex`)
 - Components, each 0–100:
   - HRV: 100·Φ((ln HRV − μ)/σ)
   - RHR: 100·Φ(−(RHR − μ)/σ)
   - Sleep: 100·min(1, asleep/need)
-- Score = weighted mean with weights 0.45 / 0.30 / 0.25. If a component is missing, the remaining weights are renormalised.
+- Score = weighted mean with weights 0.45 / 0.30 / 0.25.
 - Φ is the standard normal CDF (Abramowitz & Stegun 7.1.26), so the score is the percentile of today within your own normal range. 50 = a typical day for you.
-- **Rationale for weights (app choice):** HRV is the most sensitive single autonomic marker (Buchheit 2014 Front Physiol 5:73) and RHR comes second. Sleep is included because sleep loss suppresses recovery.
-- **Missing data:** at least one of HRV and RHR needs a calibrated baseline; sleep alone never yields a recovery score. Otherwise the status is `calibrating` or `missing`, with the reason.
+- **Rationale for weights (app choice, not from a validation study):** HRV is the most sensitive single autonomic marker (Buchheit 2014 Front Physiol 5:73) and RHR comes second. Sleep is included because sleep loss suppresses recovery.
+- **Missing data (v2):** the HRV component is required, i.e. a calibrated HRV baseline and a value for the night.
+  - Without HRV the status is `calibrating (have/14)` or `missing`, with the reason.
+  - RHR and sleep are optional; if one is missing, the remaining weights are renormalised and listed.
+  - v1 also accepted RHR + sleep without HRV, which let sleep duration carry 45 % of a score still called "recovery".
+- **Interpretation:** the score says how today compares with your own recent normal. It is not a measure of absolute fitness. A score of 50 every day is the expected average, not a problem.
 - **Not** WHOOP Recovery, Bevel, Athlytic or Fitbit Daily Readiness. Those are proprietary.
 
 ### REC-READY · `readiness@1` (`trainingReadiness`)
@@ -96,6 +117,9 @@ Raw data is kept, so any metric can be recalculated when a version changes. **No
   - RHR > μ + 1σ
   - ACWR > 1.5
 - Readiness: no flags → `ready`; one flag → `caution`; two or more → `recover`. The output is categorical on purpose.
+- **Method choice:** only a *decrease* below the band is a flag (Kiviniemi et al. 2007).
+  - Javaloyes et al. 2019 also reduce intensity when the 7-day mean is *above* the band.
+  - Baseline shows "above" but does not flag it: a rise with a normal RHR is usually benign in recreational athletes, and parasympathetic saturation is described mainly in highly trained endurance athletes (Plews et al. 2012 Eur J Appl Physiol 112:3729).
 
 ### REC-FATIGUE · `fatigue@1` (`fatigueFlags`)
 Independent flags, each shown with its reason. They are never combined into a diagnosis.
@@ -123,8 +147,10 @@ Independent flags, each shown with its reason. They are never combined into a di
 - Stage components are used only for `STAGES` sleep. Otherwise the weights are renormalised.
 - **Not** the Fitbit Sleep Score, which is not available through the API.
 
-### SLP-SRI · `sleep-sri@1` (`sleepRegularityIndex`)
-- Phillips et al. 2017 Sci Rep 7:3216: SRI = −100 + 200·P(same sleep/wake state 24 h apart), at minute resolution, over the last 14 nights. It compares only pairs of consecutive recorded nights and needs ≥ 5 nights.
+### SLP-SRI · `sleep-sri@2` (`sleepRegularityIndex`)
+- Phillips et al. 2017 Sci Rep 7:3216: SRI = −100 + 200·P(same sleep/wake state 24 h apart), at minute resolution, over the last 14 nights.
+- Windows run **noon to noon** (local noon before each wake date), so each 24 h window holds exactly one night. Only pairs of consecutive recorded nights are compared; ≥ 5 nights are needed.
+  - v1 used midnight windows, so the evening of day d was compared with the start of night d+2, even when that night was not recorded.
 - **Assumption:** outside recorded sleep, the wearer is awake.
 
 ### SLP-MID · `sleep-midpoint-sd@1` (`midpointVariability`)
@@ -140,7 +166,19 @@ Independent flags, each shown with its reason. They are never combined into a di
 - Sessions shorter than 60 s are listed but not analysed.
 - **Exclusions** live in `exercise_exclusions` and never modify provider rows. Excluded workouts are left out of workout counts, totals and comparisons. All-day load (`load_trimp`) is heart-rate based and therefore unaffected.
 
+### ENERGY · provider values only
+- **Total energy** = Google's `total-calories` daily roll-up (BMR + activity), and **active energy** = Σ reconciled `active-energy-burned`. Both are Google estimates from heart rate, movement and profile data, and are labelled "est.".
+- Baseline computes no calories of its own and does not add BMR: `basal-energy-burned` is empty for this account.
+- **Energy per heart-rate zone** = Google's `calories-in-heart-rate-zone` roll-up.
+- Wrist-worn energy estimates have large individual errors (median absolute error often 20–40 %; Shcherbina et al. 2017 J Pers Med 7:3). Use them for trends, not exact energy balance.
+
+### NIGHT-ATTRIBUTED SAMPLES · `nightSampleSeries`, `dailyAttrSeries`
+- Overnight samples (breathing rate by sleep stage) are attributed to the **wake date** of the main sleep session that contains them. Grouping by civil day would split a night at midnight.
+  - Verified on real data: all HRV and breathing-rate samples, and 766 of 769 SpO₂ samples, fall inside a sleep session.
+- **SpO₂ low end** = Google's `lowerBoundPercentage` reported with the nightly average. Baseline does not take the minimum of single samples, which motion artefacts can dominate.
+
 ### Aggregation rules (all metric pages)
 - Weekly, monthly and period values are the **mean of the days that have data**. For additive metrics (steps, energy, minutes) that is the mean daily total. Missing days are never counted as 0. The number of days with data is shown next to every average.
+- **Incomplete day:** for daily totals (`agg: sum`: steps, energy, minutes, load, sedentary time) the current day is shown as "so far" but left out of averages, min/max, comparisons and baselines. The change vs baseline is hidden for it.
 - Period comparison: the selected range vs the previous range of equal length.
 - Metric baseline: the mean ± SD of the 28 days before the selected end date, shown once 14 values exist.

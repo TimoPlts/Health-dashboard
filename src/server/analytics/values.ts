@@ -1,6 +1,6 @@
 import type { DB } from "../db/client";
 import { METRIC_BY_ID, type MetricDef } from "./registry";
-import { dailyMetricSeries, dateRange, derivedSeries, intervalSumSeries, nightSeries, sampleDailySeries, shiftDate, type DaySeries } from "./series";
+import { dailyAttrSeries, dailyMetricSeries, dateRange, nightSampleSeries, derivedSeries, intervalSumSeries, localToday, nightSeries, sampleDailySeries, shiftDate, type DaySeries } from "./series";
 import { computeScores, nightValue, type DayScores } from "./scores";
 
 /**
@@ -16,6 +16,8 @@ export function metricSeries(db: DB, def: MetricDef, from: string, to: string, f
       return s.scale ? new Map([...m].map(([d, v]) => [d, v * s.scale!])) : m;
     }
     case "sample": return sampleDailySeries(db, s.dataType, from, to, fbOffsetS, s.agg);
+    case "dailyAttr": return dailyAttrSeries(db, s.metric, s.attr, from, to);
+    case "nightSample": return nightSampleSeries(db, s.dataType, from, to, fbOffsetS, s.agg, s.attr);
     case "derived": {
       const m = derivedSeries(db, s.metric, from, to);
       return s.scale ? new Map([...m].map(([d, v]) => [d, v * s.scale!])) : m;
@@ -49,9 +51,15 @@ export const RANGE_DAYS: Record<RangeKey, number> = { "7d": 7, "30d": 30, "90d":
 
 const mean = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : null);
 
-/** Aggregate of the days that have data within [from, to] — never fills gaps with 0. */
-function aggregate(def: MetricDef, series: DaySeries, from: string, to: string) {
-  const vals = dateRange(from, to).map((d) => series.get(d)).filter((v): v is number => v !== undefined);
+/**
+ * Daily totals ("sum" metrics: steps, energy, minutes, load) are incomplete for the current day. They are shown as
+ * "so far" but left out of averages, min/max, comparisons and baselines, which would otherwise be pulled down.
+ */
+export const isCompleteDay = (def: MetricDef, date: string, today: string) => def.agg !== "sum" || date < today;
+
+/** Aggregate of the complete days that have data within [from, to] — never fills gaps with 0. */
+function aggregate(def: MetricDef, series: DaySeries, from: string, to: string, today: string) {
+  const vals = dateRange(from, to).filter((d) => isCompleteDay(def, d, today)).map((d) => series.get(d)).filter((v): v is number => v !== undefined);
   if (!vals.length) return { value: null as number | null, days: 0, min: null as number | null, max: null as number | null };
   // For "sum" metrics a period value is the mean DAILY total (comparable across periods with different coverage).
   return { value: mean(vals), days: vals.length, min: Math.min(...vals), max: Math.max(...vals) };
@@ -70,18 +78,19 @@ export function metricDetail(db: DB, id: string, range: RangeKey, end: string, f
   const histFrom = shiftDate(end, -Math.max(days * 2, 120));
   const scores = def.series.kind === "score" ? computeScores(db, histFrom, end, fbOffsetS) : undefined;
   const all = metricSeries(db, def, histFrom, end, fbOffsetS, scores);
-  const points = dateRange(from, end).map((date) => ({ date, value: all.get(date) ?? null }));
+  const today = localToday(fbOffsetS);
+  const points = dateRange(from, end).map((date) => ({ date, value: all.get(date) ?? null, partial: !isCompleteDay(def, date, today) }));
   const latestDate = [...all.keys()].filter((d) => d <= end).sort().at(-1) ?? null;
-  const cur = aggregate(def, all, from, end), prev = aggregate(def, all, prevFrom, prevTo);
-  const baseVals = dateRange(shiftDate(end, -28), shiftDate(end, -1)).map((d) => all.get(d)).filter((v): v is number => v !== undefined);
+  const cur = aggregate(def, all, from, end, today), prev = aggregate(def, all, prevFrom, prevTo, today);
+  const baseVals = dateRange(shiftDate(end, -28), shiftDate(end, -1)).filter((d) => isCompleteDay(def, d, today)).map((d) => all.get(d)).filter((v): v is number => v !== undefined);
   const bMean = mean(baseVals);
   const baseline: MetricBaseline | null = def.baseline && baseVals.length >= 14 && bMean !== null
     ? { status: "ok", mean: bMean, sd: Math.sqrt(baseVals.reduce((a, v) => a + (v - bMean) ** 2, 0) / (baseVals.length - 1)), n: baseVals.length }
     : def.baseline ? { status: "calibrating", have: baseVals.length, need: 14 } : null;
   return {
     def, range, from, to: end, points,
-    latest: latestDate ? { date: latestDate, value: all.get(latestDate)! } : null,
-    averages: (["7d", "30d", "90d"] as RangeKey[]).map((r) => ({ range: r, ...aggregate(def, all, shiftDate(end, -RANGE_DAYS[r] + 1), end) })),
+    latest: latestDate ? { date: latestDate, value: all.get(latestDate)!, partial: !isCompleteDay(def, latestDate, today) } : null,
+    averages: (["7d", "30d", "90d"] as RangeKey[]).map((r) => ({ range: r, ...aggregate(def, all, shiftDate(end, -RANGE_DAYS[r] + 1), end, today) })),
     period: cur, previous: prev,
     change: cur.value !== null && prev.value !== null && prev.value !== 0 ? { abs: cur.value - prev.value, pct: ((cur.value - prev.value) / Math.abs(prev.value)) * 100 } : null,
     baseline,

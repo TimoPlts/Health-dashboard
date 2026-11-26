@@ -38,11 +38,13 @@ export function normCdf(z: number): number {
  *   RHR   = 100·Φ(−z), z = (RHR_today − μ) / σ                    (lower RHR than usual → higher)
  *   Sleep = 100·min(1, minutes asleep / sleep need)
  * Weights 0.45 / 0.30 / 0.25 (app choice: HRV is the most sensitive single marker of autonomic recovery,
- * Buchheit 2014 Front Physiol 5:73; RHR second). Missing components are dropped and weights renormalised,
- * but at least one of HRV / RHR must have a calibrated baseline — sleep alone is not called "recovery".
+ * Buchheit 2014 Front Physiol 5:73; RHR second).
+ * recovery@2: the HRV component is REQUIRED (calibrated baseline + a value for the night). Without it the score would
+ * be dominated by sleep duration (45 % of the renormalised weight) while still being called "recovery".
+ * RHR and sleep are optional; when one is missing the remaining weights are renormalised and the UI lists them.
  * Φ(z) = the percentile of today's value within your own normal range, so 50 = a typical day for you.
  */
-export const RECOVERY_VERSION = "recovery@1";
+export const RECOVERY_VERSION = "recovery@2";
 export const RECOVERY_WEIGHTS = { hrv: 0.45, rhr: 0.3, sleep: 0.25 } as const;
 
 export interface RecoveryInput {
@@ -61,12 +63,12 @@ export function recoveryIndex(i: RecoveryInput): RecoveryResult {
   const rhr = i.rhrToday !== null && i.rhrBaseline.status === "ok" && i.rhrBaseline.sd > 0
     ? 100 * normCdf(-(i.rhrToday - i.rhrBaseline.mean) / i.rhrBaseline.sd) : null;
   const sleep = i.minutesAsleep !== null && i.sleepNeedMin > 0 ? 100 * Math.min(1, i.minutesAsleep / i.sleepNeedMin) : null;
-  if (hrv === null && rhr === null) {
+  if (hrv === null) {
     const cal = (b: BaselineResult) => (b.status === "calibrating" ? b : null);
-    if (i.hrvBaseline.status === "calibrating" || i.rhrBaseline.status === "calibrating") {
+    if (i.hrvBaseline.status === "calibrating") {
       return { status: "calibrating", version: RECOVERY_VERSION, hrv: cal(i.hrvBaseline), rhr: cal(i.rhrBaseline) };
     }
-    return { status: "missing", version: RECOVERY_VERSION, reason: "No HRV or resting heart rate for this day" };
+    return { status: "missing", version: RECOVERY_VERSION, reason: i.hrvToday === null ? "No overnight HRV for this day" : "HRV baseline has no spread yet" };
   }
   const parts = { hrv, rhr, sleep };
   let wSum = 0, sum = 0;
@@ -85,7 +87,11 @@ export function recoveryIndex(i: RecoveryInput): RecoveryResult {
  * Physiol 101:743, Plews et al. (2013), Javaloyes et al. (2019) Int J Sports Physiol Perform 14:1287:
  *   7-day rolling mean of ln rMSSD compared with the smallest worthwhile change (SWC = 0.5·σ) around the baseline mean.
  *   below band  → HRV suppressed;  RHR > μ + 1σ → elevated;  ACWR > 1.5 → load spike.
- *   "ready" = none;  "caution" = one;  "recover" = HRV suppressed together with another flag, or two+ flags.
+ *   "ready" = none;  "caution" = one;  "recover" = two or more.
+ * Only a DECREASE below the band is a flag (Kiviniemi 2007). Javaloyes 2019 also reduces intensity when the 7-day mean
+ * is ABOVE the band; Baseline reports "above" but does not flag it, because a rise with normal RHR is usually benign in
+ * recreational athletes, and parasympathetic saturation is described mainly in highly trained endurance athletes
+ * (Plews et al. 2012 Eur J Appl Physiol 112:3729).
  * Needs ≥ 3 of the last 7 nights and a calibrated HRV baseline.
  */
 export const READINESS_VERSION = "readiness@1";
@@ -105,7 +111,7 @@ export function trainingReadiness(i: { hrvLast7: (number | null)[]; hrvBaseline:
   const rhrHigh = i.rhrToday !== null && i.rhrBaseline.status === "ok" && i.rhrToday > i.rhrBaseline.mean + i.rhrBaseline.sd;
   const loadSpike = i.acwr !== null && i.acwr > 1.5;
   const flags = [hrvState === "below", rhrHigh, loadSpike].filter(Boolean).length;
-  const level: Readiness = flags === 0 ? "ready" : hrvState === "below" && flags >= 2 ? "recover" : flags >= 2 ? "recover" : "caution";
+  const level: Readiness = flags === 0 ? "ready" : flags === 1 ? "caution" : "recover";
   return {
     status: "ok" as const, version: READINESS_VERSION, level, hrvState, rhrHigh, loadSpike,
     rollingLnHrv: roll.mean, band: [i.hrvBaseline.mean - swc, i.hrvBaseline.mean + swc] as [number, number], nights: roll.n,

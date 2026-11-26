@@ -1,10 +1,10 @@
 import type { DB } from "../db/client";
-import { acwr as acwrFn } from "@/lib/metrics/load";
+import { acwr as acwrFn, trackedLoad } from "@/lib/metrics/load";
 import { fatigueFlags, hrvBaseline, recoveryIndex, rhrBaseline, trainingReadiness, type BaselineResult, type FatigueFlag, type RecoveryResult } from "@/lib/metrics/recovery";
 import { sleepDebt, sleepScore, sleepRegularityIndex, midpointVariability } from "@/lib/metrics/sleep";
 import { sleepEfficiency } from "@/lib/metrics/sleep-baseline";
 import { getSettings } from "../settings";
-import { dailyMetricSeries, dateRange, derivedSeries, nightSeries, shiftDate, type NightRow } from "./series";
+import { dailyMetricSeries, dateRange, derivedSeries, localToday, nightSeries, shiftDate, type NightRow } from "./series";
 
 /** History loaded before `from` so baselines (28 d), ACWR (28 d) and debt (7 d) are available on the first day. */
 const HISTORY_DAYS = 42;
@@ -53,9 +53,12 @@ export function computeScores(db: DB, from: string, to: string, fbOffsetS: numbe
   const rhr = dailyMetricSeries(db, "resting_hr", hFrom, to);
   const resp = dailyMetricSeries(db, "respiratory_rate", hFrom, to);
   const skin = dailyMetricSeries(db, "skin_temp_deviation", hFrom, to);
-  const load = derivedSeries(db, "load_trimp", hFrom, to);
-  const { nights } = nightSeries(db, hFrom, to, fbOffsetS);
   const val = (m: Map<string, number>, d: string) => m.get(d) ?? null;
+  const load = derivedSeries(db, "load_trimp", hFrom, to);
+  const worn = derivedSeries(db, "hr_worn_min", hFrom, to);
+  const today = localToday(fbOffsetS);
+  const acwrLoad = dates.map((d) => trackedLoad(val(load, d), val(worn, d), d < today));
+  const { nights } = nightSeries(db, hFrom, to, fbOffsetS);
 
   const out = new Map<string, DayScores>();
   dates.forEach((date, i) => {
@@ -67,8 +70,7 @@ export function computeScores(db: DB, from: string, to: string, fbOffsetS: numbe
     const night = nights.get(date) ?? null;
     const asleepPerNight = dates.slice(Math.max(0, i - 6), i + 1).map((d) => nights.get(d)?.minutesAsleep ?? null);
     const debt = sleepDebt(asleepPerNight, need, 7);
-    const loads = dates.slice(0, i + 1).map((d) => val(load, d));
-    const a = acwrFn(loads);
+    const a = acwrFn(acwrLoad.slice(0, i + 1));
     const rec = recoveryIndex({ hrvToday: val(hrv, date), hrvBaseline: hb, rhrToday: val(rhr, date), rhrBaseline: rb, minutesAsleep: night?.minutesAsleep ?? null, sleepNeedMin: need });
     const ready = trainingReadiness({ hrvLast7: dates.slice(Math.max(0, i - 6), i + 1).map((d) => val(hrv, d)), hrvBaseline: hb, rhrToday: val(rhr, date), rhrBaseline: rb, acwr: a.ratio });
     const ss = night ? sleepScore({
@@ -97,7 +99,8 @@ export function sleepConsistency(db: DB, to: string, fbOffsetS: number, nightsBa
   const stageRows = db.$client.prepare(
     `select start_ms as startMs, end_ms as endMs from sleep_stages where is_short_awakening = 0 and stage != 'AWAKE' and session_id in (${list.map(() => "?").join(",")})`,
   ).all(...list.map((n) => n.id)) as { startMs: number; endMs: number }[];
-  const dayStarts = list.map((n) => Date.parse(`${n.date}T00:00:00Z`) - (n.endOffsetS ?? fbOffsetS) * 1000);
+  // Noon-to-noon windows (sleep-sri@2): local noon on the day before each wake date.
+  const dayStarts = list.map((n) => Date.parse(`${n.date}T00:00:00Z`) - (n.endOffsetS ?? fbOffsetS) * 1000 - 12 * 3_600_000);
   return {
     status: "ok" as const,
     sri: sleepRegularityIndex(stageRows, dayStarts),

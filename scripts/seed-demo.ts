@@ -62,14 +62,17 @@ for (let o = -(DAYS - 1); o <= 0; o++) {
   // ---- Nightly vitals ----
   const rhr = Math.round(55 - 2 * fitness + (poor ? 4 : 0) + gauss() * 1.5);
   const hrv = Math.max(20, 52 + 6 * fitness - (poor ? 14 : 0) + gauss() * 6);
-  const daily = (metric: string, value: number, unit: string) => b.daily.push({ source: band, metric, date, value, unit });
+  const daily = (metric: string, value: number, unit: string, attrs?: Record<string, unknown>) => b.daily.push({ source: band, metric, date, value, unit, attrs });
   daily("resting_hr", rhr, "bpm");
   daily("hrv_rmssd_daily", Math.round(hrv), "ms");
   daily("hrv_rmssd_deep_sleep", Math.round(hrv * 1.18), "ms");
   daily("hr_non_rem", rhr + 3 + gauss(), "bpm");
   daily("hrv_entropy", 2.2 + gauss() * 0.15, "");
-  daily("spo2_avg", 95.6 + rnd() * 1.8, "%");
-  daily("respiratory_rate", 14.2 + gauss() * 0.4 + (poor ? 0.8 : 0), "breaths/min");
+  const spo2 = 95.6 + rnd() * 1.8;
+  daily("spo2_avg", spo2, "%", { lower: spo2 - 2.5 - rnd() * 1.5, upper: Math.min(100, spo2 + 1.8) });
+  const resp = 14.2 + gauss() * 0.4 + (poor ? 0.8 : 0);
+  daily("respiratory_rate", resp, "breaths/min");
+  b.obs.push({ source: band, dataType: "respiratory-rate-sleep-summary", startMs: wake - 3_600_000, endMs: wake - 3_600_000, variant: "", utcOffsetS: OFF, value: resp, unit: "breaths/min", attrs: { deep: resp - 0.6, light: resp + 0.2, rem: resp + 0.7 } });
   const skin = 34.1 + gauss() * 0.25 + (poor ? 0.4 : 0);
   daily("skin_temp_nightly", skin, "°C");
   if (o > -(DAYS - 3)) daily("skin_temp_deviation", skin - 34.1, "°C");
@@ -106,6 +109,7 @@ for (let o = -(DAYS - 1); o <= 0; o++) {
   }
   for (let h = 9; h < 20; h += 3) if (d0 + h * 3.6e6 < now) b.obs.push({ source: rec, dataType: "sedentary-period", startMs: d0 + h * 3.6e6, endMs: d0 + (h + 1.2) * 3.6e6, variant: "", utcOffsetS: OFF, value: 72, unit: "min" });
   b.obs.push({ source: rec, dataType: "active-minutes", startMs: d0, endMs: d0 + 86_400_000, variant: "LIGHT", utcOffsetS: OFF, value: 140 + Math.round(gauss() * 20), unit: "min" });
+  b.obs.push({ source: rec, dataType: "active-minutes", startMs: d0, endMs: d0 + 86_400_000, variant: "MODERATE", utcOffsetS: OFF, value: Math.max(0, 18 + Math.round(gauss() * 8)), unit: "min" });
   b.daily.push({ source: rollup, metric: "total_kcal", date, value: 1720 + active + gauss() * 40, unit: "kcal" });
 
   // ---- Workout: Fitbit-detected strength session + Hevy's Apple Health copy (as in the real data) ----

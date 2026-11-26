@@ -55,6 +55,36 @@ export function sampleDailySeries(db: DB, dataType: string, from: string, to: st
   return new Map(rows.map((r) => [r.date, r.value]));
 }
 
+/** A numeric attribute of a provider daily value (same source preference as dailyMetricSeries). */
+export function dailyAttrSeries(db: DB, metric: string, attr: string, from: string, to: string): DaySeries {
+  if (!/^[A-Za-z0-9_]+$/.test(attr)) throw new Error("invalid attr");
+  const rows = db.all(sql`
+    select d.date as date, json_extract(d.attrs, ${"$." + attr}) as value from daily_metrics d left join sources s on s.id = d.source_id
+    where d.metric = ${metric} and d.date >= ${from} and d.date <= ${to}
+    order by d.date, case when s.platform in ('FITBIT','ROLLUP') then 0 else 1 end`) as { date: string; value: number | null }[];
+  const m: DaySeries = new Map();
+  for (const r of rows) if (!m.has(r.date) && typeof r.value === "number" && Number.isFinite(r.value)) m.set(r.date, r.value);
+  return m;
+}
+
+/**
+ * Samples recorded during the main sleep of each night, keyed by wake date. Civil-day grouping would split a night
+ * at midnight; this does not. `attr` reads a numeric attribute instead of the main value.
+ */
+export function nightSampleSeries(db: DB, dataType: string, from: string, to: string, fbOffsetS: number, agg: "avg" | "min" | "max", attr?: string): DaySeries {
+  if (attr !== undefined && !/^[A-Za-z0-9_]+$/.test(attr)) throw new Error("invalid attr");
+  const { nights } = nightSeries(db, from, to, fbOffsetS);
+  const col = attr ? sql`json_extract(attrs, ${"$." + attr})` : sql`value`;
+  const out: DaySeries = new Map();
+  for (const [date, n] of nights) {
+    const vals = (db.all(sql`select ${col} as v from observations where data_type = ${dataType} and start_ms >= ${n.startMs} and start_ms <= ${n.endMs}`) as { v: number | null }[])
+      .map((r) => r.v).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    if (!vals.length) continue;
+    out.set(date, agg === "min" ? Math.min(...vals) : agg === "max" ? Math.max(...vals) : vals.reduce((a, b) => a + b, 0) / vals.length);
+  }
+  return out;
+}
+
 export function derivedSeries(db: DB, metric: string, from: string, to: string): DaySeries {
   const rows = db.all(sql`select date, value from derived_daily where metric = ${metric} and date >= ${from} and date <= ${to}`) as { date: string; value: number }[];
   return new Map(rows.map((r) => [r.date, r.value]));
@@ -109,4 +139,6 @@ export function dateRange(from: string, to: string): string[] {
   for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) out.push(new Date(t).toISOString().slice(0, 10));
   return out;
 }
+/** Civil date "now" for a UTC offset in seconds. Used to treat the current, incomplete day differently. */
+export const localToday = (fbOffsetS: number, now = Date.now()) => new Date(now + fbOffsetS * 1000).toISOString().slice(0, 10);
 export const shiftDate = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);

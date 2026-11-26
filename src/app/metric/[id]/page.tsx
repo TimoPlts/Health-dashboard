@@ -43,7 +43,7 @@ export default async function MetricPage({ params, searchParams }: { params: Pro
       <Glass thick className="rise p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[13px] font-semibold text-ink-3">{d.latest ? (d.latest.date === c.today ? "Today" : dayFmt.format(Date.parse(`${d.latest.date}T12:00:00Z`))) : "Latest"}</div>
+            <div className="text-[13px] font-semibold text-ink-3">{d.latest ? (d.latest.date === c.today ? (d.latest.partial ? "Today so far" : "Today") : dayFmt.format(Date.parse(`${d.latest.date}T12:00:00Z`))) : "Latest"}</div>
             <div className="mt-1"><Value value={f(d.latest?.value)} unit={unit} size="xl" /></div>
           </div>
           <div className="flex flex-col items-end gap-1.5">
@@ -51,7 +51,7 @@ export default async function MetricPage({ params, searchParams }: { params: Pro
             {isScore && <Badge tone="info">Baseline score</Badge>}
           </div>
         </div>
-        {base && d.latest && <div className="mt-2"><Delta value={d.latest.value - base.mean} digits={def.decimals} unit={unit} suffix={`vs your ${base.n}-day baseline`} /></div>}
+        {base && d.latest && !d.latest.partial && <div className="mt-2"><Delta value={d.latest.value - base.mean} digits={def.decimals} unit={unit} suffix={`vs your ${base.n}-day baseline`} /></div>}
         {cal && <div className="mt-3 max-w-[260px]"><Calibrating have={cal.have} need={cal.need} what="your baseline" compact /></div>}
       </Glass>
 

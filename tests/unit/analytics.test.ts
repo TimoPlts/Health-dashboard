@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acwr, chooseHrMax, zoneLoad } from "@/lib/metrics/load";
+import { acwr, chooseHrMax, LOAD_MIN_WORN_MIN, trackedLoad, zoneLoad } from "@/lib/metrics/load";
 import { fatigueFlags, hrvBaseline, normCdf, recoveryIndex, rhrBaseline, trainingReadiness } from "@/lib/metrics/recovery";
 import { groupSessions } from "@/server/analytics/workouts";
 import { midpointVariability, sleepDebt, sleepRegularityIndex, sleepScore } from "@/lib/metrics/sleep";
@@ -127,5 +127,42 @@ describe("workout grouping (Google sessions)", () => {
   it("keeps different types and small overlaps separate", () => {
     expect(groupSessions([s("walk", 0, 32, "TREADMILL_WALK"), s("lift", 4, 64)])).toHaveLength(2);
     expect(groupSessions([s("a", 0, 60), s("b", 55, 120)])).toHaveLength(2);
+  });
+});
+
+describe("calculation audit 2026-11 regressions", () => {
+  const hrv = Array.from({ length: 28 }, (_, i) => 50 + (i % 5) - 2);
+  const rhr = Array.from({ length: 28 }, (_, i) => 55 + (i % 3) - 1);
+  it("ACWR input: the incomplete current day and days with < 10 h wear are gaps, not low load", () => {
+    expect(trackedLoad(80, 1200, true)).toBe(80);
+    expect(trackedLoad(5, 1200, false)).toBeNull(); // today, partial
+    expect(trackedLoad(20, LOAD_MIN_WORN_MIN - 1, true)).toBeNull(); // short wear
+    expect(trackedLoad(0, 1400, true)).toBe(0); // a real rest day stays 0
+    // A partial "today" passed as a gap leaves yesterday's ratio unchanged.
+    const steady = Array(30).fill(50);
+    expect(acwr([...steady, null]).ratio).toBeCloseTo(acwr(steady).ratio!, 10);
+    expect(acwr([...steady, 5]).ratio!).toBeLessThan(0.9); // what the old behaviour did each morning
+  });
+  it("recovery@2 requires HRV: RHR + sleep alone are not called recovery", () => {
+    const base = { hrvBaseline: hrvBaseline(hrv), rhrBaseline: rhrBaseline(rhr), minutesAsleep: 480, sleepNeedMin: 480 };
+    expect(recoveryIndex({ ...base, hrvToday: null, rhrToday: 55 })).toMatchObject({ status: "missing" });
+    expect(recoveryIndex({ ...base, hrvBaseline: hrvBaseline(hrv.slice(0, 6)), hrvToday: 50, rhrToday: 55 })).toMatchObject({ status: "calibrating", hrv: { have: 6 } });
+    const noRhr = recoveryIndex({ ...base, hrvToday: 50, rhrToday: null });
+    expect(noRhr.status).toBe("ok");
+    if (noRhr.status === "ok") expect(Object.keys(noRhr.weights).sort()).toEqual(["hrv", "sleep"]);
+  });
+  it("readiness: one flag → caution; HRV above the band is reported but not flagged", () => {
+    const hb = hrvBaseline(hrv), rb = rhrBaseline(rhr);
+    expect(trainingReadiness({ hrvLast7: Array(7).fill(50), hrvBaseline: hb, rhrToday: 62, rhrBaseline: rb, acwr: 1 })).toMatchObject({ level: "caution", rhrHigh: true });
+    expect(trainingReadiness({ hrvLast7: Array(7).fill(70), hrvBaseline: hb, rhrToday: 55, rhrBaseline: rb, acwr: 1 })).toMatchObject({ level: "ready", hrvState: "above" });
+  });
+  it("SRI with noon-to-noon windows is not lowered by an unrecorded following night", () => {
+    const D = 86_400_000, H = 3_600_000, d0 = Date.UTC(2026, 2, 1);
+    const nights = Array.from({ length: 6 }, (_, i) => d0 + i * D); // wake dates
+    const sleep = nights.map((d) => ({ startMs: d - 1 * H, endMs: d + 7 * H }));
+    // Noon windows (sleep-sri@2): every pair compares two recorded nights → perfectly regular.
+    expect(sleepRegularityIndex(sleep, nights.map((d) => d - 12 * H))!.sri).toBeCloseTo(100, 5);
+    // Midnight windows (sleep-sri@1): the last pair's evening reaches into an unrecorded night → lower.
+    expect(sleepRegularityIndex(sleep, nights)!.sri).toBeLessThan(100);
   });
 });

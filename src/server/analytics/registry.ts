@@ -10,6 +10,10 @@ export type SeriesSpec =
   | { kind: "daily"; metric: string }
   | { kind: "interval"; dataType: string; variant?: string; scale?: number }
   | { kind: "sample"; dataType: string; agg?: "avg" | "min" | "max" }
+  /** A numeric attribute stored with a provider daily value (e.g. the SpO₂ range Google reports with the nightly average). */
+  | { kind: "dailyAttr"; metric: string; attr: string }
+  /** Samples recorded inside the main sleep session, attributed to the wake date (night-safe, unlike civil-day samples). */
+  | { kind: "nightSample"; dataType: string; attr?: string; agg: "avg" | "min" | "max" }
   | { kind: "derived"; metric: string; scale?: number }
   | { kind: "night"; field: "asleep" | "inBed" | "efficiency" | "deep" | "rem" | "light" | "awake" | "latency" | "bedtime" | "wake" }
   | { kind: "score"; field: "recovery" | "sleepScore" | "sleepDebt" | "acwr" | "strain" | "balance" };
@@ -44,13 +48,13 @@ export const METRICS: MetricDef[] = [
   { id: "recovery", label: "Recovery", group: "recovery", tone: "recovery", unit: "", decimals: 0, series: { kind: "score", field: "recovery" }, agg: "mean", better: "higher",
     source: "Baseline (from Google HRV, resting HR and sleep)", estimate: true,
     explanation: "How today's overnight HRV, resting heart rate and sleep compare with your own recent normal. 50 is a typical day for you.",
-    method: "recovery@1 — percentile of today's ln(HRV) and resting HR within your 28-day baseline (weights 45/30 %), plus sleep vs need (25 %). Needs 14 days of data. App-specific; not WHOOP, Bevel or Fitbit Readiness." },
+    method: "recovery@2 — percentile of last night's ln(HRV) and resting HR within your 28-day baseline (weights 45/30 %), plus sleep vs need (25 %). HRV is required; needs 14 nights of HRV. App-specific; not WHOOP, Bevel or Fitbit Readiness." },
   { id: "strain", label: "Cardio load", short: "Load", group: "load", tone: "load", unit: "TRIMP", decimals: 0, series: { kind: "score", field: "strain" }, agg: "sum", better: undefined, baseline: true,
     source: "Baseline (from Fitbit heart rate)", explanation: "Cardiovascular load of the whole day: minutes spent in each heart-rate zone, weighted 1–5 by intensity.",
     method: "trimp-edwards@1 — Edwards TRIMP over all-day heart rate; zones as % of HRmax (220 − age, as Google uses)." },
   { id: "acwr", label: "Acute : chronic load", short: "Load ratio", group: "load", tone: "load", unit: "×", decimals: 2, series: { kind: "score", field: "acwr" }, agg: "mean",
     source: "Baseline", explanation: "Your last 7 days of load compared with your last 28. Around 0.8–1.3 means load is building steadily; above 1.5 is a sudden spike.",
-    method: "acwr-ewma@1 — EWMA 7 / EWMA 28 (Williams 2017; bands after Gabbett 2016). Needs 21 tracked days." },
+    method: "acwr-ewma@2 — EWMA 7 / EWMA 28 (Williams 2017; bands after Gabbett 2016) over complete days with ≥ 10 h heart-rate coverage. Needs 21 such days in the last 28. Today is not included until it is complete." },
   { id: "balance", label: "Training balance", group: "load", tone: "load", unit: "", decimals: 0, series: { kind: "score", field: "balance" }, agg: "mean",
     source: "Baseline", explanation: "Chronic minus acute load. Positive: fresher than your usual; negative: carrying recent fatigue.",
     method: "EWMA 28 − EWMA 7 of daily TRIMP. Needs 21 tracked days." },
@@ -83,8 +87,13 @@ export const METRICS: MetricDef[] = [
   // Vitals
   { id: "spo2", label: "Blood oxygen", short: "SpO₂", group: "vitals", tone: "vitals", unit: "%", decimals: 1, series: { kind: "daily", metric: "spo2_avg" }, agg: "mean", baseline: true,
     source: `${G} · daily-oxygen-saturation`, explanation: "Average oxygen saturation during sleep. Not a medical measurement." },
+  { id: "spo2_low", label: "Blood oxygen, low end", short: "SpO₂ low", group: "vitals", tone: "vitals", unit: "%", decimals: 1, series: { kind: "dailyAttr", metric: "spo2_avg", attr: "lower" }, agg: "mean", baseline: true,
+    source: `${G} · daily-oxygen-saturation (lowerBoundPercentage)`, explanation: "The low end of the oxygen-saturation range Google reports for the night. Single readings can be lowered by movement or a loose fit. Not a medical measurement." },
   { id: "respiratory_rate", label: "Breathing rate", group: "vitals", tone: "vitals", unit: "br/min", decimals: 1, series: { kind: "daily", metric: "respiratory_rate" }, agg: "mean", baseline: true,
     source: `${G} · daily-respiratory-rate`, explanation: "Average breaths per minute during sleep. A rise above your normal can come with illness or strain." },
+  ...([["deep", "deep"], ["light", "light"], ["rem", "REM"]] as const).map(([a, l]) => ({ id: `resp_${a}`, label: `Breathing rate, ${l} sleep`, group: "vitals" as const, tone: "vitals" as const, unit: "br/min", decimals: 1,
+    series: { kind: "nightSample" as const, dataType: "respiratory-rate-sleep-summary", attr: a, agg: "avg" as const }, agg: "mean" as const, baseline: true,
+    source: `${G} · respiratory-rate-sleep-summary`, explanation: `Average breaths per minute during ${l} sleep, as measured by the Fitbit Air. Deep sleep gives the steadiest reading.` })),
   { id: "skin_temp", label: "Skin temperature change", short: "Skin temp Δ", group: "vitals", tone: "vitals", unit: "°C", decimals: 1, series: { kind: "daily", metric: "skin_temp_deviation" }, agg: "mean",
     source: `${G} · daily-sleep-temperature-derivations`, explanation: "Nightly skin temperature relative to Fitbit's own baseline for you (+/− °C)." },
   { id: "skin_temp_abs", label: "Nightly skin temperature", short: "Skin temp", group: "vitals", tone: "vitals", unit: "°C", decimals: 2, series: { kind: "daily", metric: "skin_temp_nightly" }, agg: "mean",
@@ -127,8 +136,14 @@ export const METRICS: MetricDef[] = [
     source: `${G} · active-zone-minutes`, explanation: "Google's measure of heart-pumping activity: 1 per minute in fat-burn, 2 per minute in cardio or peak. WHO guidance ≈ 150 per week." },
   { id: "active_min", label: "Active minutes", group: "activity", tone: "activity", unit: "min", decimals: 0, series: { kind: "interval", dataType: "active-minutes" }, agg: "sum", better: "higher",
     source: `${G} · active-minutes`, explanation: "Minutes of light, moderate and vigorous activity." },
-  { id: "sedentary", label: "Sedentary time", group: "activity", tone: "activity", unit: "h", decimals: 1, series: { kind: "interval", dataType: "sedentary-period", scale: 1 / 60 }, agg: "mean", better: "lower",
+  { id: "sedentary", label: "Sedentary time", group: "activity", tone: "activity", unit: "h", decimals: 1, series: { kind: "interval", dataType: "sedentary-period", scale: 1 / 60 }, agg: "sum", better: "lower",
     source: `${G} · sedentary-period`, explanation: "Time spent sitting or lying still while awake." },
+  ...([["LIGHT", "Light"], ["MODERATE", "Moderate"], ["VIGOROUS", "Vigorous"]] as const).map(([v, l]) => ({ id: `active_min_${v.toLowerCase()}`, label: `${l} activity`, group: "activity" as const, tone: "activity" as const, unit: "min", decimals: 0,
+    series: { kind: "interval" as const, dataType: "active-minutes", variant: v }, agg: "sum" as const, better: "higher" as const, source: `${G} · active-minutes (${v})`,
+    explanation: `Minutes Google classified as ${l.toLowerCase()} activity. Part of "Active minutes".` })),
+  ...([["FAT_BURN", "fat-burn", 1], ["CARDIO", "cardio", 2], ["PEAK", "peak", 2]] as const).map(([v, l, w]) => ({ id: `azm_${v.toLowerCase()}`, label: `Zone minutes, ${l}`, group: "activity" as const, tone: "activity" as const, unit: "AZM", decimals: 0,
+    series: { kind: "interval" as const, dataType: "active-zone-minutes", variant: v }, agg: "sum" as const, better: "higher" as const, source: `${G} · active-zone-minutes (${v})`,
+    explanation: `Active Zone Minutes earned in Google's ${l} zone (${w} per minute). Part of the AZM total.` })),
   { id: "swim_strokes", label: "Swim strokes", group: "activity", tone: "activity", unit: "", decimals: 0, series: { kind: "interval", dataType: "swim-lengths-data" }, agg: "sum",
     source: `${G} · swim-lengths-data (Fitbit Air)`, explanation: "Strokes in swim lengths detected by the Fitbit Air." },
   ...(["LIGHT", "MODERATE", "VIGOROUS", "PEAK"] as const).map((z) => ({ id: `google_zone_${z.toLowerCase()}`, label: `${z[0]}${z.slice(1).toLowerCase()} zone (Google)`, group: "activity" as const, tone: "heart" as const, unit: "min", decimals: 0,

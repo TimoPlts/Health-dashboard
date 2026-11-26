@@ -48,7 +48,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<Re
           <Link href={`/metric/recovery`} transitionTypes={["nav-forward"]} className="pressable flex flex-col items-center gap-2">
             <Ring value={rec.status === "ok" ? rec.score : null} color={toneVar("recovery")} size={104} stroke={10} label={rec.status === "ok" ? `Recovery ${Math.round(rec.score)}` : "Recovery calibrating"}>
               {rec.status === "ok" ? <Value value={String(Math.round(rec.score))} size="lg" /> : rec.status === "calibrating"
-                ? <span className="num text-[15px] font-semibold text-ink-3">{Math.max(rec.hrv?.have ?? 0, rec.rhr?.have ?? 0)}/14</span>
+                ? <span className="num text-[15px] font-semibold text-ink-3">{rec.hrv?.have ?? 0}/14</span>
                 : <span className="text-[22px] text-ink-4">—</span>}
             </Ring>
             <span className="text-[13px] font-semibold text-ink-2">Recovery</span>
@@ -63,7 +63,7 @@ export default async function Today({ searchParams }: { searchParams: Promise<Re
             <Ring value={load} max={loadRef} color={toneVar("load")} size={104} stroke={10} label={load !== null ? `Cardio load ${Math.round(load)}` : "No heart-rate data"}>
               {load !== null ? <Value value={String(Math.round(load))} size="lg" /> : <span className="text-[22px] text-ink-4">—</span>}
             </Ring>
-            <span className="text-[13px] font-semibold text-ink-2">Load</span>
+            <span className="text-[13px] font-semibold text-ink-2">{v.date === v.today ? "Load so far" : "Load"}</span>
           </Link>
         </div>
 

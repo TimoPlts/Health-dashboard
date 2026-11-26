@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — unreleased (Production readiness)
+### Calculation audit ([FEATURE_AUDIT](FEATURE_AUDIT.md))
+- `acwr-ewma@2`: ACWR and training balance use only complete days with ≥ 10 h heart-rate coverage. Today's partial load no longer pulls the ratio down each morning.
+- `recovery@2`: HRV is required. RHR + sleep alone no longer produce a "recovery" score.
+- `sleep-sri@2`: noon-to-noon windows. Unrecorded following nights no longer lower SRI.
+- Daily totals: today is shown as "so far" and excluded from averages, comparisons and baselines.
+- Readiness: method choice documented (Kiviniemi; HRV above the band is not flagged). Code simplified.
+- Docs: zone systems, Zone 2 definition, load ring, EWMA seeding, energy error range, HR recovery, dormant strength metrics.
+### Added
+- 9 metric pages for Google data that was stored but not shown:
+  - breathing rate in deep, light and REM sleep
+  - SpO₂ low end
+  - light, moderate and vigorous activity minutes
+  - AZM by zone
+- `docs/FEATURE_AUDIT.md`: comparison with Google Health, Bevel, WHOOP, Athlytic and Apple Fitness, and the calculation audit.
+
 ## 0.4.1 — 2026-11-26 (Sync fixes)
 ### Fixed
 - Sync state no longer forgets the backfill. Every later sync used to re-fetch the full year (8–15 min); an incremental sync now takes under a minute with about one page per stream.

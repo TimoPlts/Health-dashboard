@@ -33,7 +33,7 @@ export default async function HealthPage() {
                     <span className="h-8 w-1 shrink-0 rounded-full" style={{ background: toneVar(def.tone) }} aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5 text-[15px] leading-tight font-semibold">{def.label}{def.estimate && <Badge>est.</Badge>}</div>
-                      <div className="truncate text-[12px] text-ink-3">{latest ? (latest.date === c.today ? "Today" : dayFmt.format(Date.parse(`${latest.date}T12:00:00Z`))) : "No data yet"}</div>
+                      <div className="truncate text-[12px] text-ink-3">{latest ? (latest.date === c.today ? (def.agg === "sum" ? "Today so far" : "Today") : dayFmt.format(Date.parse(`${latest.date}T12:00:00Z`))) : "No data yet"}</div>
                     </div>
                     <div className="num shrink-0 text-right text-[17px] font-semibold">
                       {latest ? formatValue(latest.value, fmt, def.decimals, def.clockBase ?? 0) : <span className="text-ink-4">—</span>}
