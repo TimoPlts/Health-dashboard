@@ -279,3 +279,15 @@ export const exerciseExclusions = sqliteTable("exercise_exclusions", {
   reason: text("reason"),
   excludedAt: integer("excluded_at").notNull(),
 });
+
+/**
+ * Owner labels for workouts (name, category, effort 1–10). Keyed by provider session id like exclusions, and written
+ * for every session of a grouped workout so the label survives regrouping. Provider data stays untouched.
+ */
+export const workoutAnnotations = sqliteTable("workout_annotations", {
+  sessionId: text("session_id").primaryKey(),
+  name: text("name"),
+  category: text("category"),
+  effort: integer("effort"),
+  updatedAt: integer("updated_at").notNull(),
+});

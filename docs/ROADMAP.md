@@ -16,10 +16,10 @@ Ranked by **usefulness** for daily use, **feasibility** with data Baseline alrea
 
 | # | Feature | Why | Inputs / method | Size | Depends on | Earliest useful |
 |---|---|---|---|---|---|---|
-| **R1** | Manual workout labels + effort | Auto-detected and Hevy-imported workouts carry generic names. A label ("Push day", "Zone 2 ride") and an optional 1–10 effort make history readable. **Exclusion of false detections already exists.** | New `workout_labels` table keyed like `exercise_exclusions`, never modifying provider rows. Effort is shown next to HR load and is not mixed into it. | S | — | now |
+| **R1** ✅ | Manual workout labels + effort | Auto-detected and Hevy-imported workouts carry generic names. A label ("Push day", "Zone 2 ride") and an optional 1–10 effort make history readable. **Exclusion of false detections already exists.** | New `workout_labels` table keyed like `exercise_exclusions`, never modifying provider rows. Effort is shown next to HR load and is not mixed into it. | S | — | now |
 | **R2** | Weekly & monthly report | One page per week/month: averages vs previous period and vs baseline, best/worst days, training distribution, sleep consistency. | Existing `metricDetail` aggregates; partial-week rules as for daily totals. Generated on read, no AI text. | M | ≥ 4 weeks of data for comparisons | mid-Dec 2026 |
-| **R3** | Cardio & Zone 2 view | Weekly Zone 2 minutes and AZM vs the WHO 150 min/week guideline; today's load range that keeps ACWR within 0.8–1.3. | Derived zone minutes; AZM (Google); ACWR band × chronic load (Gabbett 2016). Label as %HRmax Zone 2 (CALCULATIONS limits). | M | ACWR needs 21 tracked days | load range ≈ 2026-12-15; rest now |
-| **R4** | Sleep page depth | Bedtime target from sleep need + usual wake time; overnight HRV and SpO₂ curves; awakenings; naps. | HRV/SpO₂ samples (stored, night-attributed); median wake time over 14 nights. | M | — | now |
+| **R3** ✅ | Cardio & Zone 2 view | Weekly Zone 2 minutes and AZM vs the WHO 150 min/week guideline; today's load range that keeps ACWR within 0.8–1.3. | Derived zone minutes; AZM (Google); ACWR band × chronic load (Gabbett 2016). Label as %HRmax Zone 2 (CALCULATIONS limits). | M | ACWR needs 21 tracked days | load range ≈ 2026-12-15; rest now |
+| **R4** ✅ | Sleep page depth | Bedtime target from sleep need + usual wake time; overnight HRV and SpO₂ curves; awakenings; naps. | HRV/SpO₂ samples (stored, night-attributed); median wake time over 14 nights. | M | — | now |
 | **R5** | Weight trend | A smoothed trend so daily water swings don't read as change. | Exponentially smoothed weight (10 % per day, Walker *The Hacker's Diet*) with raw points; only with ≥ 1 entry/week. | S | weight entries (1 so far) | when weighing regularly |
 | **R6** | Daily habit journal | Log caffeine, alcohol, late meal, stretching, etc. in a few taps; the basis for R7. | Owner-defined yes/no or count habits; one row per day; quick-entry sheet on Today. | M | — | now |
 | **R7** | Habit correlations | "On days after alcohol your HRV was 9 % lower." | Next-day HRV/RHR/sleep on habit vs no-habit days: difference in means with a 95 % CI and n per group. Shown only with ≥ 8 nights in each group. Wording is "associated with", never causal. | M | R6 + several weeks of logging | ≈ 4–8 weeks after R6 |
@@ -29,7 +29,7 @@ Ranked by **usefulness** for daily use, **feasibility** with data Baseline alrea
 | **R11** | Hevy import (optional) | Exercises, sets, weights, e1RM, volume. | Client and normalizer exist and are tested ([ADR-0005](adr/0005-workouts-from-google.md)). | S to enable | Hevy Pro (paid; owner's decision) | conditional |
 | **R12** | Live Bluetooth heart rate | Live HR during a workout in Baseline. | iOS Safari has no Web Bluetooth, so this needs a native iOS app (Swift/Expo) calling Baseline's server. | L | native app | low priority |
 
-**Recommended order:** R1 → R4 → R3 → R8 → R6 → R2 (mid-December) → R7 → R9 → R5. R10–R12 are conditional on a data source or purchase.
+**Recommended order:** R1 → R4 → R3 → R8 → R6 → R2 (mid-December) → R7 → R9 → R5. Done: R1, R3, R4 (2026-11-27, Milestone A). R10–R12 are conditional on a data source or purchase.
 
 ## Infrastructure (as needed)
 - Start at boot without signing in: `npm run service -- install` from an administrator terminal ([DEPLOYMENT](DEPLOYMENT.md)).

@@ -13,6 +13,7 @@ import { offsetMs } from "../src/lib/time";
 import { listWorkouts, workoutDetail } from "../src/server/analytics/workouts";
 import { healthIndex, sleepView, todayView, trainingView, trendSeries } from "../src/server/views";
 import { METRICS as ALL } from "../src/server/analytics/registry";
+import { cardioView } from "../src/server/analytics/cardio";
 
 const db = openDatabase(env().DATABASE_PATH);
 const tz = env().HOME_TIME_ZONE;
@@ -46,6 +47,7 @@ for (const [name, fn] of [
   ["sleep", () => sleepView(today)], ["health", () => healthIndex(today)],
   ["trends 30d", () => trendSeries(ALL.map((m) => m.id), "30d", today)], ["trends 1y", () => trendSeries(["recovery", "hrv", "steps", "strain"], "1y", today)],
   ["training 90d", () => trainingView("90d")],
+  ["cardio", () => cardioView(db, today, fb, tz)],
 ] as [string, () => unknown][]) {
   const t0 = performance.now();
   try { fn(); console.log(`  ${name.padEnd(14)} ok   ${(performance.now() - t0).toFixed(0)} ms`); }

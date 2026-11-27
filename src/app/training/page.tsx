@@ -6,6 +6,8 @@ import { TrendChart } from "@/ui/charts/TrendChart";
 import { fmtDuration, fmtTime } from "@/ui/format";
 import { db } from "@/server/db/client";
 import { getWorkouts } from "@/server/queries";
+import { CATEGORY_LABEL, WORKOUT_CATEGORIES, isCategory } from "@/lib/metrics/workout-labels";
+import { Icon } from "@/ui/icons";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Training · Baseline" };
@@ -18,6 +20,10 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams;
   const range = parseRange(sp.range, "30d");
   const v = trainingView(range);
+  const cat = typeof sp.cat === "string" && (isCategory(sp.cat) || sp.cat === "unlabelled") ? sp.cat : "all";
+  const shown = v.workouts.filter((w) => cat === "all" || (cat === "unlabelled" ? !w.label?.category : w.label?.category === cat));
+  const filterHref = (c: string) => `/training?range=${range}${c === "all" ? "" : `&cat=${c}`}`;
+  const usedCats = WORKOUT_CATEGORIES.filter((c) => v.workouts.some((w) => w.label?.category === c));
   const load = trendSeries(["strain"], range, v.today).strain!;
   const totalZone = v.zones.reduce((a, b) => a + b, 0);
   const counted = v.workouts.filter((w) => !w.excluded && !w.tooShort);
@@ -42,6 +48,12 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
         </Glass>
       </div>
 
+      <Link href="/cardio" transitionTypes={["nav-forward"]} className="glass pressable rise rise-2 mt-3 flex items-center gap-3 p-4">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklab,var(--heart)_18%,transparent)] text-heart"><Icon name="heart" size={18} strokeWidth={2.2} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold">Cardio &amp; Zone 2</span><span className="block text-[12px] text-ink-3">Weekly zones, Active Zone Minutes, sessions and resting heart rate</span></span>
+        <span className="text-ink-4"><Icon name="chevronRight" size={15} strokeWidth={2.4} /></span>
+      </Link>
+
       <SectionHeader href={`/metric/strain?range=${range}`}>Daily cardio load</SectionHeader>
       <Glass className="p-4">
         <TrendChart points={load.points} color={toneVar("load")} kind="bar" height={150} unit="TRIMP" label="Daily cardio load (Edwards TRIMP)" />
@@ -63,16 +75,26 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
       </Glass>
 
       <SectionHeader>History</SectionHeader>
-      {v.workouts.length ? (
+      {v.workouts.length > 0 && (
+        <nav aria-label="Filter workouts" className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+          {(["all", ...usedCats, "unlabelled"] as const).map((c) => (
+            <Link key={c} href={filterHref(c)} scroll={false} replace aria-current={cat === c ? "page" : undefined}
+              className={`pressable shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${cat === c ? "bg-ink text-bg" : "glass glass-pill text-ink-2"}`}>
+              {c === "all" ? "All" : c === "unlabelled" ? "Unlabelled" : CATEGORY_LABEL[c]}
+            </Link>
+          ))}
+        </nav>
+      )}
+      {shown.length ? (
         <Glass className="list overflow-hidden">
-          {v.workouts.map((w) => (
+          {shown.map((w) => (
             <Row key={w.id} href={`/training/${encodeURIComponent(w.id)}`} icon={w.type.includes("WALK") || w.type.includes("RUN") ? "steps" : "bolt"} tone="load"
-              title={<span className={w.excluded || w.tooShort ? "text-ink-3" : undefined}>{w.title}{w.excluded && <span className="ml-1.5 align-middle"><Badge>Excluded</Badge></span>}{w.tooShort && <span className="ml-1.5 align-middle"><Badge>Too short</Badge></span>}</span>}
-              subtitle={`${dayFmt.format(w.startMs)} · ${fmtTime(w.startMs, v.tz)} · ${fmtDuration(w.durationMin, { compact: true })}${w.sources.some((s) => s.app === "com.hevyapp.hevy") ? " · Hevy" : ""}`}
+              title={<span className={w.excluded || w.tooShort ? "text-ink-3" : undefined}>{w.title}{w.label?.category && <span className="ml-1.5 align-middle"><Badge>{CATEGORY_LABEL[w.label.category]}</Badge></span>}{w.excluded && <span className="ml-1.5 align-middle"><Badge>Excluded</Badge></span>}{w.tooShort && <span className="ml-1.5 align-middle"><Badge>Too short</Badge></span>}</span>}
+              subtitle={`${dayFmt.format(w.startMs)} · ${fmtTime(w.startMs, v.tz)} · ${fmtDuration(w.durationMin, { compact: true })}${w.label?.effort ? ` · effort ${w.label.effort}` : ""}${w.sources.some((s) => s.app === "com.hevyapp.hevy") ? " · Hevy" : ""}`}
               trailing={w.hr?.stats.avgBpm ? <span className="num text-[14px] font-semibold text-ink-2">{Math.round(w.hr.stats.avgBpm)}<span className="ml-0.5 text-[11px] text-ink-3">bpm</span></span> : undefined} />
           ))}
         </Glass>
-      ) : <Glass className="p-5 text-center text-[14px] text-ink-3">No workouts in this period.</Glass>}
+      ) : <Glass className="p-5 text-center text-[14px] text-ink-3">{v.workouts.length ? "No workouts match this filter." : "No workouts in this period."}</Glass>}
 
       {hevy.length > 0 && (
         <>

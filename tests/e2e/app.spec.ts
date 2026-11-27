@@ -53,7 +53,7 @@ test("today, sleep, health, metric detail and trends render with demo data", asy
   await expect(page.getByRole("img", { name: "Sleep stages over the night" })).toBeVisible();
   await shot(page, "sleep"); await axe(page); await noOverflow(page);
 
-  await page.getByRole("button", { name: /Method/ }).click();
+  await page.getByRole("button", { name: "Method", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "How the sleep score works" })).toBeVisible();
   await shot(page, "sheet");
   await page.keyboard.press("Escape");
@@ -94,4 +94,39 @@ test("training, workout detail, exclusion and settings", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Google Health" })).toBeVisible();
   await expect(page.getByText("Next automatic sync")).toBeVisible();
   await shot(page, "settings"); await axe(page);
+});
+
+test("sleep detail, cardio and workout labels", async ({ page }) => {
+  await login(page);
+  await page.goto("/sleep");
+  await expect(page.getByText("Tonight", { exact: true })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Heart rate during the night" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Blood oxygen during the night" })).toBeVisible();
+  await expect(page.getByText("Compared with other nights")).toBeVisible();
+  await page.getByRole("button", { name: /Methods/ }).click();
+  await expect(page.getByRole("dialog", { name: "How sleep is calculated" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await axe(page); await noOverflow(page);
+
+  await page.goto("/cardio");
+  await expect(page.getByRole("heading", { name: "Cardio" })).toBeVisible();
+  await expect(page.getByText("Heart-rate zones this week")).toBeVisible();
+  await page.waitForTimeout(400);
+  await shot(page, "cardio"); await axe(page); await noOverflow(page);
+  await page.getByRole("button", { name: "Heart-rate zones explained" }).click();
+  await expect(page.getByRole("dialog", { name: "Heart-rate zones explained" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.goto("/training?range=90d&cat=push");
+  await expect(page.getByRole("link", { name: /Push day/ }).first()).toBeVisible();
+  await page.getByRole("link", { name: /Push day/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Push day" })).toBeVisible();
+  await page.getByRole("button", { name: /Edit label/ }).click();
+  const dlg = page.getByRole("dialog", { name: "Label workout" });
+  await expect(dlg).toBeVisible();
+  await shot(page, "workout-label");
+  await dlg.getByRole("button", { name: "Effort 8" }).click();
+  await dlg.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Effort 8/10")).toBeVisible();
+  await axe(page); await noOverflow(page);
 });

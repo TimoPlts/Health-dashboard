@@ -71,9 +71,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <span className="min-w-0 truncate text-right text-ink-2">{srv.publicUrl ? srv.publicUrl.replace(/^https:\/\//, "") : "Not set up"}</span></div>
       </Glass>
 
+      <div id="personal" className="scroll-mt-4" />
       <SectionHeader>Personal</SectionHeader>
       <Glass className="overflow-hidden">
-        <PrefsForm sleepNeedMin={s.sleepNeedMin} hrMaxOverride={s.hrMaxOverride} autoSyncMinutes={s.autoSyncMinutes} googleHrMax={s.profileAge ? 220 - s.profileAge : null} disabled={isDemoMode()} />
+        <PrefsForm wakeMin={s.goals.wakeMin} sleepNeedMin={s.sleepNeedMin} hrMaxOverride={s.hrMaxOverride} autoSyncMinutes={s.autoSyncMinutes} googleHrMax={s.profileAge ? 220 - s.profileAge : null} disabled={isDemoMode()} />
       </Glass>
 
       <SectionHeader>Connections</SectionHeader>

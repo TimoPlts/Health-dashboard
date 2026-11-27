@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.0 — unreleased (Advanced analytics and personalisation)
+### Milestone A: sleep, training, cardio (R1, R3, R4)
+- **Workouts:**
+  - your own name, category (push / pull / legs / upper / full body / cardio / rest) and effort 1–10
+  - category filter on Training
+  - comparison with similar workouts, including the average of similar sessions
+  - provider data untouched; exclusions unchanged
+- **Sleep:**
+  - recommended bedtime from sleep need, wake-up target (new setting) and usual efficiency
+  - wake after sleep onset, wakings and short awakenings
+  - overnight heart-rate, HRV and SpO₂ graphs
+  - naps
+  - comparison with the previous night and the 14-night average
+  - 30-night sleep-debt history
+  - a "How sleep is calculated" sheet
+- **Cardio page (`/cardio`, from Training):**
+  - weekly Zone 2, Active Zone Minutes (by Google zone), cardio sessions and time, load and resting heart rate
+  - rings against your goals, with the WHO guideline as a reference
+  - 12-week charts and comparisons that use complete weeks only
+  - %HRmax vs physiological Zone 2 explained; load ratio shown with its limitations
+- **Pure, platform-independent modules:** `lib/metrics/periods.ts`, `sleep-detail.ts`, `workout-labels.ts`.
+- `HrChart` now also draws overnight HRV and SpO₂. `Sheet` can close itself and has an accessible trigger label.
+
 ## 0.5.0 — 2026-11-26 (Production readiness)
 ### Roadmap
 - `docs/ROADMAP.md`: prioritised features R1–R12 (labels, reports, Zone 2, sleep depth, goals, journal, correlations, …).

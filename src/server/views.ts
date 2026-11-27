@@ -7,6 +7,7 @@ import { computeScores, nightValue, sleepConsistency } from "./analytics/scores"
 import { dateRange, nightSeries, shiftDate } from "./analytics/series";
 import { metricSeries, RANGE_DAYS, type MetricBaseline, type RangeKey } from "./analytics/values";
 import { listWorkouts, workoutHr } from "./analytics/workouts";
+import { sleepDetail } from "./analytics/sleep-detail";
 import { getSettings } from "./settings";
 import { todayDate } from "./queries";
 
@@ -93,6 +94,7 @@ export function sleepView(date: string) {
   return {
     date, today, tz, earliest: earliestDataDate(db, fb), needMin: settings.sleepNeedMin, day, night, stages, last14,
     consistency: sleepConsistency(db, date, fb),
+    detail: sleepDetail(db, date, fb, settings.goals.wakeMin),
     vitals: ["hrv", "sleeping_hr", "respiratory_rate", "spo2", "skin_temp"].map(vit),
   };
 }

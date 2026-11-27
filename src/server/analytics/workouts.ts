@@ -6,6 +6,7 @@ import { chooseHrMax, zoneLoad } from "@/lib/metrics/load";
 import { civilDate } from "@/lib/time";
 import { hrSamples } from "../queries";
 import { getSettings } from "../settings";
+import { isCardio, isCategory, validEffort, type WorkoutCategory } from "@/lib/metrics/workout-labels";
 
 /**
  * Workouts from Google Health exercise sessions (no Hevy Pro needed). Documented in docs/CALCULATIONS.md § WORKOUTS.
@@ -28,8 +29,10 @@ interface SessionRow {
 
 export interface WorkoutSource { sessionId: string; platform: string | null; app: string | null; recordingMethod: string | null; label: string }
 
+export interface WorkoutLabel { name: string | null; category: WorkoutCategory | null; effort: number | null }
+
 export interface WorkoutSummary {
-  id: string; type: string; title: string; startMs: number; endMs: number; offsetS: number | null; date: string;
+  id: string; type: string; title: string; typeTitle: string; label: WorkoutLabel | null; cardio: boolean; startMs: number; endMs: number; offsetS: number | null; date: string;
   durationMin: number; activeMin: number | null; sources: WorkoutSource[];
   calories: { kcal: number; source: string } | null;
   providerAvgHr: number | null; providerAzm: number | null; distanceM: number | null; steps: number | null;
@@ -64,15 +67,21 @@ export function groupSessions<T extends { id: string; startMs: number; endMs: nu
   return groups;
 }
 
-function summarise(group: SessionRow[], excluded: Set<string>, tz: string): WorkoutSummary {
+type AnnotationRow = { sessionId: string; name: string | null; category: string | null; effort: number | null; updatedAt: number };
+
+function summarise(group: SessionRow[], excluded: Set<string>, tz: string, annotations: Map<string, AnnotationRow>): WorkoutSummary {
   const primary = [...group].sort((a, b) => Number(b.platform === "FITBIT") - Number(a.platform === "FITBIT") || (b.endMs - b.startMs) - (a.endMs - a.startMs))[0]!;
   const startMs = Math.min(...group.map((g) => g.startMs)), endMs = Math.max(...group.map((g) => g.endMs));
   const m = (r: SessionRow) => (r.metrics ? (JSON.parse(r.metrics) as Record<string, unknown>) : {});
   const num = (v: unknown) => (v === undefined || v === null || v === "" ? null : Number(v));
   const calSrc = [primary, ...group.filter((g) => g !== primary)].find((r) => num(m(r).caloriesKcal) !== null);
   const pm = m(primary);
+  // The newest label written to any session of the group (labels are written to all of them).
+  const ann = group.map((g) => annotations.get(g.id)).filter((a): a is AnnotationRow => Boolean(a)).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  const label: WorkoutLabel | null = ann ? { name: ann.name, category: isCategory(ann.category) ? ann.category : null, effort: validEffort(ann.effort) ? ann.effort : null } : null;
   return {
-    id: primary.id, type: primary.exerciseType, title: typeLabel(primary.exerciseType), startMs, endMs, offsetS: primary.startOffsetS,
+    id: primary.id, type: primary.exerciseType, typeTitle: typeLabel(primary.exerciseType), title: label?.name || typeLabel(primary.exerciseType),
+    label, cardio: isCardio(primary.exerciseType, label?.category), startMs, endMs, offsetS: primary.startOffsetS,
     date: civilDate(startMs, primary.startOffsetS, tz), durationMin: (endMs - startMs) / 60_000,
     activeMin: primary.activeDurationS !== null ? primary.activeDurationS / 60 : null,
     sources: group.map((r) => ({ sessionId: r.id, platform: r.platform, app: r.appPackage, recordingMethod: r.recordingMethod, label: sourceLabel(r) })),
@@ -87,9 +96,19 @@ function exclusions(db: DB) {
   return new Set(db.select({ id: t.exerciseExclusions.sessionId }).from(t.exerciseExclusions).all().map((r) => r.id));
 }
 
+function annotations(db: DB) {
+  return new Map(db.select().from(t.workoutAnnotations).all().map((r) => [r.sessionId, r as AnnotationRow]));
+}
+
 export function listWorkouts(db: DB, fromMs: number, toMs: number, tz: string): WorkoutSummary[] {
-  const ex = exclusions(db);
-  return groupSessions(loadSessions(db, fromMs, toMs)).map((g) => summarise(g, ex, tz)).sort((a, b) => b.startMs - a.startMs);
+  const ex = exclusions(db), ann = annotations(db);
+  return groupSessions(loadSessions(db, fromMs, toMs)).map((g) => summarise(g, ex, tz, ann)).sort((a, b) => b.startMs - a.startMs);
+}
+
+/** Workouts that are comparable with `w`: the same owner category when labelled, otherwise the same exercise type. */
+export function isSimilarWorkout(w: Pick<WorkoutSummary, "type" | "label">, x: Pick<WorkoutSummary, "type" | "label">) {
+  if (w.label?.category) return x.label?.category === w.label.category;
+  return x.type === w.type && !x.label?.category;
 }
 
 /** HR-derived metrics for one workout window (gap-aware). */
@@ -120,15 +139,33 @@ export function workoutDetail(db: DB, id: string, tz: string) {
   const googleZones = bands.length ? timeInBands(timeline, w.startMs, w.endMs, bands) : null;
   const at = (ms: number) => timeline.filter((x) => Math.abs(x.tMs - ms) <= 10_000).sort((a, b) => Math.abs(a.tMs - ms) - Math.abs(b.tMs - ms))[0]?.bpm ?? null;
   const endHr = at(w.endMs), hr60 = at(w.endMs + 60_000), hr120 = at(w.endMs + 120_000);
-  // History of the same type (excluding excluded workouts) for comparison.
+  // Similar earlier workouts (same category, else same type), excluding excluded / too-short ones.
   const history = listWorkouts(db, w.startMs - 180 * 86_400_000, w.startMs, tz)
-    .filter((x) => x.type === w.type && !x.excluded && !x.tooShort && x.id !== w.id).slice(0, 12)
-    .map((x) => { const h = workoutHr(db, x); return { id: x.id, date: x.date, startMs: x.startMs, durationMin: x.durationMin, avgHr: h.stats.avgBpm, maxHr: h.stats.maxBpm, trimp: h.load?.trimp ?? null, kcal: x.calories?.kcal ?? null }; });
+    .filter((x) => isSimilarWorkout(w, x) && !x.excluded && !x.tooShort && x.id !== w.id).slice(0, 12)
+    .map((x) => { const h = workoutHr(db, x); return { id: x.id, date: x.date, title: x.title, startMs: x.startMs, durationMin: x.durationMin, avgHr: h.stats.avgBpm, maxHr: h.stats.maxBpm, trimp: h.load?.trimp ?? null, kcal: x.calories?.kcal ?? null, effort: x.label?.effort ?? null }; });
+  const mean = (v: (number | null)[]) => { const x = v.filter((n): n is number => n !== null); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : null; };
+  const similarAverage = history.length >= 2 ? {
+    n: history.length, durationMin: mean(history.map((h) => h.durationMin)), avgHr: mean(history.map((h) => h.avgHr)),
+    trimp: mean(history.map((h) => h.trimp)), effort: mean(history.map((h) => h.effort)),
+  } : null;
   return {
     workout: w, stats, load, hrMax, timeline, googleZones, preMs: pre, postMs: post,
     recovery: { endHr, drop60: endHr !== null && hr60 !== null ? endHr - hr60 : null, drop120: endHr !== null && hr120 !== null ? endHr - hr120 : null },
-    history,
+    history, similarAverage, similarBy: w.label?.category ? ("category" as const) : ("type" as const),
   };
+}
+
+/**
+ * Label a workout (name, category, effort). Written for every session of the group; provider rows are untouched.
+ * All fields null → the label is removed.
+ */
+export function setWorkoutLabel(db: DB, sessionIds: string[], l: WorkoutLabel) {
+  const empty = !l.name && !l.category && l.effort === null;
+  for (const id of sessionIds) {
+    if (empty) { db.delete(t.workoutAnnotations).where(sql`${t.workoutAnnotations.sessionId} = ${id}`).run(); continue; }
+    const v = { name: l.name?.trim() || null, category: l.category, effort: l.effort, updatedAt: Date.now() };
+    db.insert(t.workoutAnnotations).values({ sessionId: id, ...v }).onConflictDoUpdate({ target: t.workoutAnnotations.sessionId, set: v }).run();
+  }
 }
 
 export function setExcluded(db: DB, sessionIds: string[], excluded: boolean, reason?: string) {

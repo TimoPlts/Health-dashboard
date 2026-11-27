@@ -5,6 +5,8 @@ import { Badge, Glass, Label, LargeTitle, Page, SectionHeader, Value } from "@/u
 import { ExcludeToggle } from "@/ui/controls";
 import { HrChart } from "@/ui/charts/HrChart";
 import { fmtDuration, fmtNumber, fmtTime } from "@/ui/format";
+import { WorkoutLabelSheet } from "@/ui/WorkoutLabelSheet";
+import { CATEGORY_LABEL } from "@/lib/metrics/workout-labels";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Workout · Baseline" };
@@ -24,8 +26,12 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
       <LargeTitle back={{ href: "/training", label: "Training" }} eyebrow={dayFmt.format(w.startMs)} title={w.title} />
       <div className="mb-4 flex flex-wrap items-center gap-2 px-1">
         <span className="num text-[14px] text-ink-2">{fmtTime(w.startMs, c.tz)} – {fmtTime(w.endMs, c.tz)}</span>
+        {w.label?.category && <Badge>{CATEGORY_LABEL[w.label.category]}</Badge>}
+        {w.label?.effort != null && <Badge>Effort {w.label.effort}/10</Badge>}
+        {w.label?.name && <span className="text-[13px] text-ink-3">{w.typeTitle}</span>}
         {w.excluded && <Badge tone="warn">Excluded from analytics</Badge>}
         {w.tooShort && <Badge>Too short to analyse</Badge>}
+        <span className="ml-auto"><WorkoutLabelSheet sessionIds={w.sources.map((s) => s.sessionId)} label={w.label} defaultName={w.typeTitle} /></span>
       </div>
 
       <Glass thick className="rise grid grid-cols-3 gap-y-4 p-5">
@@ -73,19 +79,18 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
 
       {d.history.length > 0 && (
         <>
-          <SectionHeader>Compared with earlier {w.title.toLowerCase()}</SectionHeader>
+          <SectionHeader>Compared with similar workouts</SectionHeader>
           <Glass className="p-4">
-            <div className="flex items-center justify-between pb-2 text-[12px] font-semibold text-ink-3"><span>Date</span><span className="flex gap-4"><span>Time</span><span>Avg HR</span><span className="w-12 text-right">Load</span></span></div>
-            <div className="flex items-center justify-between rounded-xl bg-[var(--fill)] px-2 py-2.5 text-[14px]">
-              <span className="font-semibold">This workout</span>
-              <span className="num flex gap-4 font-semibold"><span>{fmtDuration(w.durationMin, { compact: true })}</span><span>{stats.avgBpm !== null ? `${Math.round(stats.avgBpm)} bpm` : "—"}</span><span className="w-12 text-right">{load ? Math.round(load.trimp) : "—"}</span></span>
+            <p className="mb-3 text-[12px] text-ink-3">{d.similarBy === "category" && w.label?.category ? `Earlier workouts labelled ${CATEGORY_LABEL[w.label.category]}` : `Earlier ${w.typeTitle.toLowerCase()} workouts without a different label`} · last 6 months</p>
+            <div className="grid grid-cols-[1fr_repeat(4,minmax(0,3.6rem))] items-center gap-x-2 pb-2 text-right text-[12px] font-semibold text-ink-3">
+              <span className="text-left">Workout</span><span>Time</span><span>Avg HR</span><span>Load</span><span>Effort</span>
             </div>
+            <CompareRow strong title="This workout" duration={w.durationMin} avgHr={stats.avgBpm} trimp={load?.trimp ?? null} effort={w.label?.effort ?? null} />
+            {d.similarAverage && <CompareRow title={`Average of ${d.similarAverage.n}`} duration={d.similarAverage.durationMin} avgHr={d.similarAverage.avgHr} trimp={d.similarAverage.trimp} effort={d.similarAverage.effort} muted />}
             <div className="list mt-1">
-              {d.history.slice(0, 5).map((h) => (
-                <div key={h.id} className="flex items-center justify-between py-2.5 text-[14px]">
-                  <span className="text-ink-2">{new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(h.startMs)}</span>
-                  <span className="num flex gap-4 font-semibold"><span>{fmtDuration(h.durationMin, { compact: true })}</span><span>{h.avgHr !== null ? `${Math.round(h.avgHr)} bpm` : "—"}</span><span className="w-12 text-right">{h.trimp !== null ? Math.round(h.trimp) : "—"}</span></span>
-                </div>
+              {d.history.slice(0, 6).map((h) => (
+                <CompareRow key={h.id} title={new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(h.startMs)} subtitle={h.title !== w.title ? h.title : undefined}
+                  duration={h.durationMin} avgHr={h.avgHr} trimp={h.trimp} effort={h.effort} />
               ))}
             </div>
           </Glass>
@@ -106,5 +111,18 @@ export default async function WorkoutPage({ params }: { params: Promise<{ id: st
       </p>
       <div className="mt-5 flex justify-center"><ExcludeToggle sessionIds={w.sources.map((s) => s.sessionId)} excluded={w.excluded} /></div>
     </Page>
+  );
+}
+
+function CompareRow({ title, subtitle, duration, avgHr, trimp, effort, strong, muted }: { title: string; subtitle?: string; duration: number | null; avgHr: number | null; trimp: number | null; effort: number | null; strong?: boolean; muted?: boolean }) {
+  const r = (v: number | null, d = 0) => (v === null ? "—" : v.toFixed(d));
+  return (
+    <div className={`grid grid-cols-[1fr_repeat(4,minmax(0,3.6rem))] items-center gap-x-2 py-2.5 text-right text-[14px] ${strong ? "rounded-xl bg-[var(--fill)] px-2 font-semibold" : ""} ${muted ? "text-ink-2" : ""}`}>
+      <span className="min-w-0 truncate text-left">{title}{subtitle && <span className="block truncate text-[12px] font-normal text-ink-3">{subtitle}</span>}</span>
+      <span className="num">{duration !== null ? fmtDuration(duration, { compact: true }) : "—"}</span>
+      <span className="num">{r(avgHr)}</span>
+      <span className="num">{r(trimp)}</span>
+      <span className="num">{effort === null ? "—" : r(effort, muted ? 1 : 0)}</span>
+    </div>
   );
 }

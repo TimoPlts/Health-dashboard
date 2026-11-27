@@ -57,7 +57,7 @@ export function Segmented({ param, options, value }: { param: string; options: {
 /**
  * Native-feeling bottom sheet: scrim, spring-in, drag-down to dismiss, Escape to close, focus moved into the sheet.
  */
-export function Sheet({ trigger, title, children, triggerClassName }: { trigger: ReactNode; title: string; children: ReactNode; triggerClassName?: string }) {
+export function Sheet({ trigger, title, children, triggerClassName, dragToDismiss = true, triggerLabel }: { trigger: ReactNode; title: string; children: ReactNode | ((close: () => void) => ReactNode); triggerClassName?: string; dragToDismiss?: boolean; triggerLabel?: string }) {
   const [open, setOpen] = useState(false);
   const reduce = useReducedMotion();
   useEffect(() => {
@@ -69,7 +69,7 @@ export function Sheet({ trigger, title, children, triggerClassName }: { trigger:
   }, [open]);
   return (
     <>
-      <button type="button" className={cx("pressable", triggerClassName)} onClick={() => setOpen(true)} aria-haspopup="dialog">{trigger}</button>
+      <button type="button" className={cx("pressable", triggerClassName)} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={triggerLabel}>{trigger}</button>
       <AnimatePresence>
         {open && (
           <div className="fixed inset-0 z-[70] flex items-end justify-center">
@@ -79,7 +79,7 @@ export function Sheet({ trigger, title, children, triggerClassName }: { trigger:
               style={{ borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingBottom: "max(env(safe-area-inset-bottom), 24px)" }}
               initial={reduce ? { opacity: 0 } : { y: "100%" }} animate={reduce ? { opacity: 1 } : { y: 0 }} exit={reduce ? { opacity: 0 } : { y: "100%" }}
               transition={{ type: "spring", stiffness: 420, damping: 40 }}
-              drag={reduce ? false : "y"} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
+              drag={reduce || !dragToDismiss ? false : "y"} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }}
               onDragEnd={(_, i) => { if (i.offset.y > 110 || i.velocity.y > 600) setOpen(false); }}
               ref={(el) => el?.focus()} tabIndex={-1}>
               <div className="mx-auto mb-3 h-[5px] w-10 rounded-full bg-[var(--fill-2)]" aria-hidden="true" />
@@ -87,7 +87,7 @@ export function Sheet({ trigger, title, children, triggerClassName }: { trigger:
                 <h2 className="text-[20px] font-bold tracking-[-0.02em]">{title}</h2>
                 <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="pressable grid size-8 place-items-center rounded-full bg-[var(--fill-2)] text-ink-2"><Icon name="close" size={16} strokeWidth={2.4} /></button>
               </div>
-              {children}
+              {typeof children === "function" ? children(() => setOpen(false)) : children}
             </motion.div>
           </div>
         )}

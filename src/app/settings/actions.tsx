@@ -67,7 +67,7 @@ export function LogoutButton() {
 }
 
 /** Owner preferences: sleep need, HRmax override, automatic sync interval. */
-export function PrefsForm({ sleepNeedMin, hrMaxOverride, autoSyncMinutes, googleHrMax, disabled }: { sleepNeedMin: number; hrMaxOverride: number | null; autoSyncMinutes: number; googleHrMax: number | null; disabled?: boolean }) {
+export function PrefsForm({ wakeMin, sleepNeedMin, hrMaxOverride, autoSyncMinutes, googleHrMax, disabled }: { wakeMin: number | null; sleepNeedMin: number; hrMaxOverride: number | null; autoSyncMinutes: number; googleHrMax: number | null; disabled?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const save = async (patch: Record<string, unknown>) => {
@@ -83,6 +83,13 @@ export function PrefsForm({ sleepNeedMin, hrMaxOverride, autoSyncMinutes, google
         <span><span className="block text-[15px] font-semibold">Sleep need</span><span className="text-[12px] text-ink-3">Used for sleep score, debt and recovery · 7–9 h recommended</span></span>
         <select className={sel} disabled={disabled || busy} defaultValue={sleepNeedMin} onChange={(e) => save({ sleepNeedMin: Number(e.target.value) })}>
           {[420, 450, 480, 510, 540].map((m) => <option key={m} value={m}>{Math.floor(m / 60)} h {m % 60 ? `${m % 60} min` : ""}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-3 px-4 py-3">
+        <span><span className="block text-[15px] font-semibold">Wake-up target</span><span className="text-[12px] text-ink-3">Used for the recommended bedtime</span></span>
+        <select className={sel} disabled={disabled || busy} defaultValue={wakeMin ?? ""} onChange={(e) => save({ goals: { wakeMin: e.target.value === "" ? null : Number(e.target.value) } })}>
+          <option value="">My usual time</option>
+          {Array.from({ length: 25 }, (_, i) => 300 + i * 15).map((m) => <option key={m} value={m}>{String(Math.floor(m / 60)).padStart(2, "0")}:{String(m % 60).padStart(2, "0")}</option>)}
         </select>
       </label>
       <label className="flex items-center justify-between gap-3 px-4 py-3">

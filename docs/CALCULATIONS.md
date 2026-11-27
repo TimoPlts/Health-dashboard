@@ -153,6 +153,31 @@ Independent flags, each shown with its reason. They are never combined into a di
   - v1 used midnight windows, so the evening of day d was compared with the start of night d+2, even when that night was not recorded.
 - **Assumption:** outside recorded sleep, the wearer is awake.
 
+### SLP-WASO · `sleep-waso@1` (`sleep-detail.ts → wakeAfterSleepOnset`)
+- **Wake after sleep onset** = minutes in AWAKE stages between the first and the last non-AWAKE stage of the night. This is the standard sleep-lab measure of fragmentation (AASM scoring manual).
+  - Time before falling asleep and after the final wake-up is excluded.
+- **Wakings** = the number of those AWAKE segments. **Longest** = the longest one.
+- Google's *short awakenings* (brief arousals inside a sleep stage) are counted separately and are not added to WASO.
+- **Missing:** a night without stages → `null`, never 0.
+
+### SLP-BEDTIME · `bedtime@1` (`sleep-detail.ts → recommendedBedtime`)
+- time in bed = sleep need ÷ median sleep efficiency of the last 14 nights (needs ≥ 5 nights)
+- bedtime = wake-up target − time in bed
+- **Wake-up target:** your setting (Settings → Personal). Without one, your usual wake-up time is used: the median of the last 14 nights, needing ≥ 5. With neither, no recommendation is shown.
+- **Why efficiency, not latency:** Google's sleep session runs from getting into bed to getting up, so falling-asleep time and night-time wakings are inside "time in bed" and already reflected in efficiency.
+- With fewer than 5 nights the result is the bare minimum (need only), labelled "minimum".
+- **Limitation:** sleep need is an estimate (SLP-NEED). The recommendation inherits that uncertainty.
+
+### SLP-COMPARE · night comparison (`analytics/sleep-detail.ts`)
+- This night vs the previous night vs the mean of the nights recorded in the last 14 days, for score, asleep, efficiency, deep, REM, WASO, wakings, bedtime and wake-up time.
+- Means use only nights with that value.
+- Overnight graphs:
+  - heart rate: 1-minute means of the 3-second samples
+  - HRV: 5-minute rMSSD samples, as recorded
+  - SpO₂: per-minute samples, as recorded
+  - All series cover the main sleep session, with gaps left as gaps.
+- Naps (non-main sessions) are listed separately and never change the night's score, need or debt.
+
 ### SLP-MID · `sleep-midpoint-sd@1` (`midpointVariability`)
 - Circular standard deviation of sleep midpoints in local time, in minutes. Needs ≥ 5 nights.
 
@@ -176,6 +201,28 @@ Independent flags, each shown with its reason. They are never combined into a di
 - Overnight samples (breathing rate by sleep stage) are attributed to the **wake date** of the main sleep session that contains them. Grouping by civil day would split a night at midnight.
   - Verified on real data: all HRV and breathing-rate samples, and 766 of 769 SpO₂ samples, fall inside a sleep session.
 - **SpO₂ low end** = Google's `lowerBoundPercentage` reported with the nightly average. Baseline does not take the minimum of single samples, which motion artefacts can dominate.
+
+### WORKOUT-LABELS · `workout_annotations` (`analytics/workouts.ts`, `lib/metrics/workout-labels.ts`)
+- **What you can set:** a name, a category (push, pull, legs, upper, full body, cardio, rest) and an effort rating (1–10, perceived exertion).
+- **Storage:** stored in Baseline only, for every session of a grouped workout, so a label survives when another duplicate session arrives. Provider rows are never changed.
+- **Similar workouts:** the same category when labelled, otherwise the same exercise type without a different label. The last 6 months, excluding excluded and too-short workouts.
+  - The average row needs ≥ 2 similar workouts.
+- **Cardio classification:** a category label wins. Without one, aerobic exercise types count as cardio (running, walking, cycling, swimming, rowing, elliptical, HIIT, hiking, stairs, …; see `CARDIO_TYPE`).
+- **Effort** is subjective and is shown next to heart-rate load. It is never mixed into it.
+
+### CARDIO-WEEK · weekly cardio (`analytics/cardio.ts`, `lib/metrics/periods.ts`)
+- **Weeks:** ISO weeks (Monday–Sunday).
+  - Weekly totals are sums of the days with data (Zone 2 and Z1–Z5 minutes, Active Zone Minutes by zone, cardio load, cardio sessions and minutes).
+  - Resting heart rate is the mean of the days with data.
+  - A week with no heart rate and no workouts is **missing** (null), not zero.
+- **Current week:** shown as "so far", including today. Comparisons with the week before and the 4-week average use **complete weeks only**.
+- **Targets:**
+  - Your goals (Zone 2 per week, AZM per week, cardio sessions per week) are shown only when set.
+  - Without an AZM goal, the ring shows the **WHO 2020 guideline** of 150 min/week of moderate activity as a reference, labelled "WHO guideline" (Bull et al. 2020 BJSM 54:1451). Active Zone Minutes count vigorous minutes double, as the WHO equivalence allows.
+- **Zones:**
+  - Baseline's Z2 is 60–70 % HRmax, an approximation of the aerobic zone. **Physiological Zone 2** (below the first lactate or ventilatory threshold) needs a test, and the page says so.
+  - Google's zones (heart-rate reserve) are shown separately as AZM by zone.
+- **Load ratio** is shown with its limitation: it describes change in load. It is not an injury prediction and not a safe-training target (LOAD-ACWR).
 
 ### Aggregation rules (all metric pages)
 - Weekly, monthly and period values are the **mean of the days that have data**. For additive metrics (steps, energy, minutes) that is the mean daily total. Missing days are never counted as 0. The number of days with data is shown next to every average.

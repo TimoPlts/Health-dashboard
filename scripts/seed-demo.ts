@@ -59,6 +59,15 @@ for (let o = -(DAYS - 1); o <= 0; o++) {
     summary: { minutesAsleep: String(Math.round(asleep)), minutesAwake: String(Math.round(awake)), minutesToFallAsleep: String(Math.round((stages[0]!.endMs - stages[0]!.startMs) / 60_000)), minutesInSleepPeriod: String(Math.round((wake - bed) / 60_000)) },
   });
 
+  // Overnight samples (fictional): HRV every 5 min, SpO2 every minute.
+  for (let tt = bed + 10 * 60_000; tt < wake; tt += 5 * 60_000) b.obs.push({ source: band, dataType: "heart-rate-variability", startMs: tt, endMs: tt, variant: "", utcOffsetS: OFF, value: Math.max(15, (poor ? 38 : 52) + gauss() * 9), unit: "ms" });
+  for (let tt = bed + 5 * 60_000; tt < wake; tt += 60_000) b.obs.push({ source: band, dataType: "oxygen-saturation", startMs: tt, endMs: tt, variant: "", utcOffsetS: OFF, value: Math.min(100, 95.8 + gauss() * 0.9), unit: "%" });
+  if (o === -2) {
+    const ns = d0 + 14.5 * 3.6e6, ne = ns + 32 * 60_000;
+    b.sleep.push({ source: rec, id: `demo-nap-${date}`, startMs: ns, endMs: ne, startOffsetS: OFF, endOffsetS: OFF, sleepType: "CLASSIC", isMain: false, isNap: true,
+      stagesStatus: "SUCCEEDED", updatedAt: ne, stages: [], summary: { minutesAsleep: "27", minutesAwake: "5" } });
+  }
+
   // ---- Nightly vitals ----
   const rhr = Math.round(55 - 2 * fitness + (poor ? 4 : 0) + gauss() * 1.5);
   const hrv = Math.max(20, 52 + 6 * fitness - (poor ? 14 : 0) + gauss() * 6);
@@ -136,6 +145,12 @@ for (let o = -(DAYS - 1); o <= 0; o++) {
 }
 
 computeDerived(db, dateRange(dayStr(-(DAYS - 1)), today), TZ);
+// One labelled workout (fictional owner label), written for both sessions of the grouped workout.
+const lastStrength = db.$client.prepare("select id, start_ms from exercise_sessions where id like 'demo-ex-hevy-%' order by start_ms desc limit 1").get() as { id: string } | undefined;
+if (lastStrength) {
+  const day = lastStrength.id.replace("demo-ex-hevy-", "");
+  for (const id of [lastStrength.id, `demo-ex-fitbit-${day}`]) db.$client.prepare("insert or replace into workout_annotations (session_id, name, category, effort, updated_at) values (?, 'Push day', 'push', 7, ?)").run(id, now);
+}
 // Google's own daily HR summary, consistent with the samples above.
 const rows = db.$client.prepare(`select date((t_ms + 3600000) / 1000, 'unixepoch') as d, min(bpm) mn, avg(bpm) av, max(bpm) mx from heart_rate_samples group by 1`).all() as { d: string; mn: number; av: number; mx: number }[];
 const rb = emptyBatch();
