@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.6.0 — unreleased (Advanced analytics and personalisation)
+## 0.6.0 — 2026-11-27 (Advanced analytics and personalisation)
+### Milestone C: weight, energy, reports (R5, R2, R7 infrastructure)
+- **Weight & energy (`/body`, from Health → Body):**
+  - manual weigh-ins (duplicate-safe; manual entries can be deleted, Google entries cannot) alongside Google records
+  - smoothed trend (10 %/day, time-aware), 7- and 30-day change only with enough entries
+  - weight goal with a projection only when justified
+  - 90-day energy expenditure (estimates)
+  - energy balance shown only with ≥ 7 days of intake + expenditure (no intake source yet)
+- **Reports (`/reports`, from Trends):**
+  - weekly and monthly; complete days only; per-day averages vs the previous period and your 28-day normal
+  - workouts, sleep debt / SRI at period end, goal completion, day-by-day charts
+  - no generated text
+- **Associations (Journal):**
+  - yes/no habits: Welch difference with 95 % CI, ≥ 8 days per group
+  - amounts and scales: Spearman ρ with 95 % CI, ≥ 20 days
+  - next-morning outcomes; chance-finding count stated; association ≠ cause
+- `npm run check:analytics` covers goals, body, reports and associations.
+
 ### Milestone B: personalisation (R6, R8, R9)
 - **Goals (`/goals`):**
   - daily: steps, active minutes, sleep, in bed by, wake-up

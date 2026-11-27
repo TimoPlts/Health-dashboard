@@ -29,6 +29,13 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
       <div className="sticky top-0 z-40 -mx-4 px-4 pt-[max(env(safe-area-inset-top),8px)] pb-2 backdrop-blur-xl [background:color-mix(in_oklab,var(--bg)_60%,transparent)]">
         <Segmented param="range" value={range} options={RANGES} />
       </div>
+      <div className="mt-2 grid grid-cols-2 gap-3">
+        {([["week", "Weekly report"], ["month", "Monthly report"]] as const).map(([k, label]) => (
+          <Link key={k} href={`/reports?kind=${k}`} transitionTypes={["nav-forward"]} className="glass pressable flex items-center justify-between gap-2 px-4 py-3 text-[14px] font-semibold">
+            {label}<span className="text-ink-4"><Icon name="chevronRight" size={15} strokeWidth={2.4} /></span>
+          </Link>
+        ))}
+      </div>
       {SECTIONS.map((s) => (
         <section key={s.title}>
           <SectionHeader>{s.title}</SectionHeader>

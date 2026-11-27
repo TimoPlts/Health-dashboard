@@ -1,6 +1,6 @@
 # Baseline: project overview
 
-_Last updated: 2026-11-27 · branch `phase-0-foundation` · milestone A of 0.6.0 (see CHANGELOG)_
+_Last updated: 2026-11-27 · branch `phase-0-foundation` · 0.6.0 (milestones A–C, see CHANGELOG)_
 
 ## What it is
 Baseline is a private, single-user health and training app for one Fitbit Air wearer.
@@ -27,6 +27,7 @@ Verification levels: **verified on real data** › **tested** (unit/integration/
 | Backups, verify, restore, export, retention | verified on real data | restore exercised end to end; export counts equal the database |
 | Delete all data | tested (fictional) | not run on real data, by design |
 | UI (all pages, dark/light, phone/desktop) | tested on the fictional demo DB | Playwright + axe, 12/12 |
+| Weight & energy, weekly/monthly reports, habit associations (with safeguards) | tested (unit, integration, E2E on demo data) | real data: read models run without errors; associations need weeks of journal logging; energy balance needs an intake source |
 | Goals, habit journal, customisable Today | tested (unit, integration, E2E on demo data) | your goals and habits start empty or as suggestions; nothing assumed |
 | Workout labels, sleep detail (WASO, bedtime, overnight graphs, naps), Cardio page | tested (unit, integration, E2E on demo data) | real data: structure only; recommended bedtime needs 5 nights or a wake-up target |
 | Displayed values vs the Google Health app | unverified by the owner | values equal the API exactly |

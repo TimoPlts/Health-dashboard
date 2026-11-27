@@ -177,3 +177,38 @@ test("goals, journal and customisable Today", async ({ page }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Workouts" })).toBeVisible();
 });
+
+test("weight, energy, reports and associations", async ({ page }) => {
+  await login(page);
+  page.on("dialog", (d) => void d.accept());
+  await page.goto("/body");
+  await expect(page.getByRole("heading", { name: "Weight & energy" })).toBeVisible();
+  await expect(page.getByText("Trend weight")).toBeVisible();
+  await page.waitForTimeout(400);
+  await shot(page, "body"); await axe(page); await noOverflow(page);
+  await page.getByRole("button", { name: "Log weight" }).click();
+  const w = page.getByRole("dialog", { name: "Log weight" });
+  await w.getByLabel("Weight in kilograms").fill("71.3");
+  await w.getByLabel("Time").fill("21:47");
+  await w.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("71.3 kg").first()).toBeVisible();
+  await page.getByRole("button", { name: /Delete manual entry .*21:47/ }).first().click();
+  await expect(page.getByText("71.3 kg")).toHaveCount(0);
+
+  await page.goto("/trends");
+  await page.getByRole("link", { name: "Weekly report" }).click();
+  await expect(page.getByText("Weekly report")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /–/ })).toBeVisible();
+  await page.waitForTimeout(400);
+  await shot(page, "report-week"); await axe(page); await noOverflow(page);
+  await page.goto("/reports?kind=month");
+  await expect(page.getByText("Monthly report")).toBeVisible();
+  await axe(page); await noOverflow(page);
+
+  await page.goto("/journal");
+  await expect(page.getByText("Associations", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "How associations work" }).click();
+  await expect(page.getByRole("dialog", { name: "How associations work" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await shot(page, "journal-assoc");
+});

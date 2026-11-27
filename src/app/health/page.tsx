@@ -24,7 +24,7 @@ export default async function HealthPage() {
         if (!items.length) return null;
         return (
           <section key={g}>
-            <SectionHeader>{GROUP_LABEL[g]}</SectionHeader>
+            <SectionHeader href={g === "body" ? "/body" : g === "load" ? "/cardio" : undefined}>{g === "body" ? "Body · weight & energy" : GROUP_LABEL[g]}</SectionHeader>
             <Glass className="list overflow-hidden">
               {items.map(({ def, latest }) => {
                 const fmt = def.clock ? "clock" : def.unit === "h" && def.group === "sleep" ? "hours" : "number";

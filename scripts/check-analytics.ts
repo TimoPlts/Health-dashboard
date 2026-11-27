@@ -14,6 +14,10 @@ import { listWorkouts, workoutDetail } from "../src/server/analytics/workouts";
 import { healthIndex, sleepView, todayView, trainingView, trendSeries } from "../src/server/views";
 import { METRICS as ALL } from "../src/server/analytics/registry";
 import { cardioView } from "../src/server/analytics/cardio";
+import { goalsView } from "../src/server/analytics/goals";
+import { bodyView } from "../src/server/analytics/body";
+import { reportView } from "../src/server/analytics/reports";
+import { associationsView } from "../src/server/analytics/associations";
 
 const db = openDatabase(env().DATABASE_PATH);
 const tz = env().HOME_TIME_ZONE;
@@ -48,6 +52,11 @@ for (const [name, fn] of [
   ["trends 30d", () => trendSeries(ALL.map((m) => m.id), "30d", today)], ["trends 1y", () => trendSeries(["recovery", "hrv", "steps", "strain"], "1y", today)],
   ["training 90d", () => trainingView("90d")],
   ["cardio", () => cardioView(db, today, fb, tz)],
+  ["goals", () => goalsView(db, today, fb, tz)],
+  ["body", () => bodyView(db, today, fb, tz)],
+  ["report week", () => reportView(db, "week", today, today, fb, tz)],
+  ["report month", () => reportView(db, "month", today, today, fb, tz)],
+  ["associations", () => associationsView(db, today, fb)],
 ] as [string, () => unknown][]) {
   const t0 = performance.now();
   try { fn(); console.log(`  ${name.padEnd(14)} ok   ${(performance.now() - t0).toFixed(0)} ms`); }

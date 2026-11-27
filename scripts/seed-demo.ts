@@ -10,7 +10,8 @@ import { emptyBatch, type SourceDescriptor, type NormalizedBatch } from "../src/
 import { writeBatch } from "../src/server/store";
 import { civilDayBounds } from "../src/lib/time";
 import { ensureDefaultHabits, listHabits, setEntry } from "../src/server/journal";
-import { EMPTY_GOALS, setSetting } from "../src/server/settings";
+import { EMPTY_GOALS, getSettings, setSetting } from "../src/server/settings";
+import { addManualWeight } from "../src/server/weight";
 import { computeDerived } from "../src/server/analytics/derive";
 import { dateRange } from "../src/server/analytics/series";
 
@@ -155,6 +156,19 @@ for (const [hi, h] of listHabits(db).entries()) {
     const v = h.kind === "boolean" ? ((o + hi) % 2 === 0 ? 1 : 0) : h.kind === "scale" ? 1 + (Math.abs(o * 7 + hi) % 5) : Math.abs(o + hi) % 4;
     setEntry(db, h.id, dayStr(o), v);
   }
+}
+
+// Fictional weigh-ins: a smart scale via Google every ~2 days (slow downward trend with daily noise) + 2 manual entries.
+{
+  const wb = emptyBatch();
+  const scale: SourceDescriptor = { provider: "google", platform: "FITBIT", deviceName: "Smart scale (demo)" };
+  for (let o = -58; o <= -2; o += 2) {
+    const [d0] = civilDayBounds(dayStr(o), TZ);
+    wb.obs.push({ source: scale, dataType: "weight", startMs: d0 + 7.2 * 3.6e6, endMs: d0 + 7.2 * 3.6e6, variant: "", utcOffsetS: OFF, value: Math.round((79.2 + o * 0.025 + gauss() * 0.45) * 10) / 10, unit: "kg" });
+  }
+  writeBatch(db, wb, null);
+  for (const o of [-1, 0]) { const [d0] = civilDayBounds(dayStr(o), TZ); addManualWeight(db, { tMs: d0 + 7.5 * 3.6e6, offsetS: OFF, kg: 78.0 + o * 0.2 }); }
+  setSetting(db, "goals", { ...getSettings(db).goals, weightKg: 76 });
 }
 
 // One labelled workout (fictional owner label), written for both sessions of the grouped workout.

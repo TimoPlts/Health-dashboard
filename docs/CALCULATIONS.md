@@ -248,6 +248,49 @@ Independent flags, each shown with its reason. They are never combined into a di
 - **Cards:** recovery/sleep/load, goals, last night, favourite metrics (up to 8), vitals, activity, journal, workouts. Each can be reordered or hidden.
 - **Saved layouts:** unknown ids are dropped. Cards added in later versions are appended at the end, so your order is never shuffled. Reset deletes the saved layout.
 
+### WEIGHT · `weight-trend@1` (`lib/metrics/weight.ts`, `server/weight.ts`, `analytics/body.ts`)
+- **Sources:**
+  - Google weight records (synced with the other streams).
+  - Manual entries, stored as observations with Baseline's own source (`provider: baseline`, `MANUAL`). Never sent to Google, never touched by sync.
+  - A manual entry within **30 min and 0.1 kg** of any existing entry is refused as a duplicate.
+- **Daily weight** = mean of that day's entries.
+- **Trend:** exponential smoothing that moves 10 % toward each new weight per day (Walker, *The Hacker's Diet*), time-aware: trend_i = trend_{i−1} + (1 − 0.9^Δdays)(w_i − trend_{i−1}). Held between weigh-ins; never interpolated.
+- **Change:** trend now − trend 7 or 30 days earlier.
+  - Weekly needs ≥ 2 entries in 14 days and ≥ 7 days of history.
+  - Monthly needs ≥ 4 entries in 45 days and ≥ 30 days of history.
+- **Goal:** remaining = target − trend.
+  - A projection (weeks at the 30-day trend rate) is shown only when the trend moves toward the goal and history is ≥ 21 days.
+  - It is labelled a projection, not a prediction.
+- **Limitation:** weighing at different times of day adds noise. A morning routine gives the steadiest trend.
+
+### ENERGY-BALANCE · `energy-balance@1` (`lib/metrics/associations.ts → energyBalance`)
+- Mean of (intake − expenditure) over the days in the last 14 complete days that have **both**. It needs ≥ 7 such days.
+- No intake source is connected (Google nutrition data needs an app that writes it, and a nutrition scope). The page says so and Baseline does not estimate intake.
+- Both sides are estimates (ENERGY).
+
+### REPORTS · `report@1` (`analytics/reports.ts`)
+- **Periods:** ISO weeks or calendar months.
+  - Current period: **complete days only** (today and future days excluded). It is marked "in progress" with n of N days.
+  - Previous period: the one before.
+  - Your normal: mean ± SD of the 28 days before the period (≥ 14 values); "baseline n/14" until then.
+- **Metric rows:**
+  - Every row is the **average per day with data**, so partial periods compare fairly. Daily totals also show the period total and the day count.
+  - Sleep debt and SRI are taken at the last complete day.
+- **Workouts:** count, time and cardio sessions (non-excluded).
+- **Goals:** completion within the period (GOALS rules). Weekly goals count complete weeks that start in the period.
+- **Text:** fixed wording only, no generated text.
+
+### ASSOCIATIONS · `assoc@1` (`lib/metrics/associations.ts`, `analytics/associations.ts`)
+- **Pairing:** habit on day D vs the **next morning's** HRV, resting HR, time asleep, sleep efficiency and recovery, over the last 120 days. Days without a log or without the outcome are left out (unlogged ≠ no).
+- **Yes/no habits:** mean after "yes" − mean after "no", with a Welch 95 % interval (t quantile by Cornish–Fisher expansion). Needs **≥ 8 days in each group**.
+- **Amounts and 1–5 scales:** Spearman rank correlation, 95 % interval via Fisher z with SE = 1.06/√(n − 3) (Fieller, Hartley & Pearson 1957). Needs **≥ 20 days**. No variation → not computed.
+- **Display:**
+  - Below the minimums, only progress is shown.
+  - Results whose interval excludes 0 are listed first; the rest are behind "Show all".
+  - The number of comparisons and the expected chance findings (about 1 in 20) are stated.
+- **Wording:** "associated with", never "caused".
+- **Limitations:** confounding (training, illness, weekdays) is not adjusted for. Exploratory only.
+
 ### Aggregation rules (all metric pages)
 - Weekly, monthly and period values are the **mean of the days that have data**. For additive metrics (steps, energy, minutes) that is the mean daily total. Missing days are never counted as 0. The number of days with data is shown next to every average.
 - **Incomplete day:** for daily totals (`agg: sum`: steps, energy, minutes, load, sedentary time) the current day is shown as "so far" but left out of averages, min/max, comparisons and baselines. The change vs baseline is hidden for it.

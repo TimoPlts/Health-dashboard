@@ -6,7 +6,7 @@
  */
 
 export interface SourceDescriptor {
-  provider: "google" | "hevy";
+  provider: "google" | "hevy" | "baseline";
   platform?: string;
   recordingMethod?: string;
   deviceFormFactor?: string;
