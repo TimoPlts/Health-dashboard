@@ -13,7 +13,7 @@ _2026-11-27 · first release on `main` · audited branch `phase-0-foundation` (b
 | `.gitignore` | rules vs. tracked files | `git ls-files -ci --exclude-standard` | no tracked file is ignored by the new rules |
 | GitHub Actions | 2 workflow runs (`ios-feasibility`), full logs | downloaded, gitleaks + identifier search | **0 findings**; only the public repo URL and the runner's own paths |
 | Actions artifacts | 2 artifacts, 4 unsigned IPAs | downloaded, unpacked, gitleaks + identifier search + file-type check | **0 findings**; no provisioning profile, database or config; embedded iOS OAuth client ID is empty; deleted locally after inspection |
-| GitHub settings | repository | `gh api` | public; secret scanning **on**, push protection **on**, 0 alerts; 0 Actions secrets, 0 variables; default workflow token read-only; `main` not branch-protected; Dependabot security updates off |
+| GitHub settings | repository | `gh api` | public; secret scanning **on**, push protection **on**, 0 alerts; 0 Actions secrets, 0 variables; default workflow token read-only. At audit time `main` was not branch-protected and Dependabot was off; both were enabled after the release (§3) |
 | Releases | — | `gh api` | none before v0.6.0 |
 | Application | auth, sessions, CSRF, gate, OAuth, crypto, routes, headers, logs, files | code review + new tests + production smoke test | see §2 |
 | Dependencies | lockfile | `npm audit`, usage review | see §4 |
@@ -29,7 +29,7 @@ Severity: **High** = could expose data or bypass a control · **Medium** = weake
 | F-4 | **Medium** | *(reported)* Runtime path checks did not resolve symlinks or Windows junctions. | **Fixed.** `assertSafeLocation()` checks the written path and the real location (`realpathSync.native` of the nearest existing folder) against resolved OneDrive and repo roots. Junction test. |
 | F-5 | **Low** | *(reported)* Secrets in repo-local `.env*` files only produced a warning; only 4 of the 8 files Next.js loads were checked. | **Fixed.** Startup refuses (names only, no values); all 8 files checked. |
 | F-6 | **Low** | Public docs contained a machine-specific Tailscale hostname, a machine-specific local group name and one count derived from real health data. | **Fixed** in the current docs (placeholders / generic wording). The old text remains in public history (identifiers, not credentials; the hostname did not match the current tailnet). No rotation needed; optional: rename the machine before enabling HTTPS certificates. |
-| F-7 | **Low** | Commit metadata of all 18 published commits contains the owner's personal e-mail. | **Mitigated.** New commits use GitHub's no-reply address. Rewriting history would need a force-push and was not done (not approved, and copies may already exist). |
+| F-7 | **Low** | Commit metadata of all 18 published commits contains the owner's personal e-mail. The v0.6.0 merge commit (`f486193`, created by GitHub's merge button) carries the GitHub account's e-mail, a second personal address, because *Keep my email addresses private* is off on the account. | **Mitigated.** New commits use GitHub's no-reply address; later changes reach `main` by fast-forward to the CI-verified PR commit, so GitHub creates no merge commit. Rewriting history would need a force-push, which branch protection now blocks and which was not approved (copies may already exist). Owner action: enable *Keep my email addresses private* (GitHub → Settings → Emails). |
 | F-8 | **Low** | No Content-Security-Policy. | **Fixed.** CSP (`'self'` everywhere, `connect-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`), plus `Cross-Origin-Opener-Policy`. Browser pass over every production page: no violations. |
 | F-9 | **Low** | Login and logout did not check the request origin (login CSRF, forced logout). | **Fixed.** Same-origin required. |
 | F-10 | **Low** | Tests could in principle reach the real runtime folder (none did: all used `:memory:` or temp homes). | **Fixed.** Vitest forces a throwaway `BASELINE_HOME`/`DATABASE_PATH`; a test asserts it. |
@@ -43,7 +43,15 @@ Reviewed without findings: scrypt hashing with constant-time compare; AES-256-GC
 ## 3. Accepted residual risks
 See [SECURITY → Residual risks](SECURITY.md). In short: health data at rest is plain SQLite behind a user-only ACL (use BitLocker / Device Encryption; SQLCipher rejected as disproportionate); code running as the owner's Windows user is trusted; the login brake is global (a tailnet member could keep login locked, not get in); a renewed session's predecessor stays valid until its expiry unless logged out; CSP needs `'unsafe-inline'` scripts for Next.js; dev-only esbuild advisory in drizzle-kit; old public history keeps the items in F-6/F-7; the repository stays public for free macOS CI (trade-off documented in SECURITY).
 
-**GitHub settings — recommendations (not changed by this release):** protect `main` (require the CI checks, block force-push and deletion); enable Dependabot security updates; optionally enable secret scanning for non-provider patterns.
+**GitHub settings (applied after the release, 2026-11-27):**
+- **`main` is protected:**
+  - both CI checks are required (*Secret scan (gitleaks, full history)* and *Typecheck, tests, build, E2E (fictional data)*), and they must come from GitHub Actions
+  - force-push and deletion are blocked
+  - open review conversations must be resolved
+  - the rules apply to admins too, so every change reaches `main` through a PR with green CI
+  - approving reviews are not required (single maintainer)
+- **Dependabot alerts and security updates are enabled.** Open alert #1 is GHSA-67mh-4wv8-2f99 (esbuild, development, transitive via drizzle-kit), the accepted advisory in §4.
+- Optional, not enabled: secret scanning for non-provider patterns.
 
 ## 4. Dependency and code audit
 - `npm audit`: production dependencies **0** vulnerabilities. All dependencies: 4 *moderate*, one advisory (GHSA-67mh-4wv8-2f99, esbuild ≤ 0.24.2 dev-server CORS) via drizzle-kit's bundled esbuild; not reachable (Baseline never runs esbuild's server). npm's suggested fix is a major downgrade of drizzle-kit → accepted.
@@ -64,7 +72,7 @@ See [SECURITY → Residual risks](SECURITY.md). In short: health data at rest is
 | Browser pass on the production build | all 11 pages 200, client JS works, **no CSP violations or console errors** |
 | Secret scan | gitleaks: history 0, commit candidates 0, Actions logs 0, artifacts 0 |
 | Dependency audit | production 0; dev 4 moderate (accepted, §4) |
-| CI on GitHub | runs on the release PR; merge only after it passes |
+| CI on GitHub | passed on the release PR (#1: push and pull-request runs) and on `main` after the merge (both jobs green) |
 
 **Real data:** no test, build or smoke run touched the owner's runtime folder (it does not exist on the development PC; every run used a temp home). No real data, log, database or configuration was uploaded to GitHub, CI, the PR or the release.
 
