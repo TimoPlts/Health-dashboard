@@ -56,11 +56,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      # Throwaway runtime home: the app and tests can only ever see this empty folder.
-      BASELINE_HOME: ${{ runner.temp }}/baseline-ci
       NEXT_TELEMETRY_DISABLED: "1"
       BASELINE_DISABLE_SCHEDULER: "1"
     steps:
+      # Throwaway runtime home: the app and tests can only ever see this empty folder.
+      # (The runner context is not available in job-level env, so it is set here.)
+      - name: Isolated runtime home
+        run: echo "BASELINE_HOME=$RUNNER_TEMP/baseline-ci" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
