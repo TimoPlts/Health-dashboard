@@ -17,9 +17,12 @@ export function civilDayBounds(date: string, timeZone: string): [number, number]
 function zonedMidnight(date: string, timeZone: string): number {
   const guess = Date.parse(`${date}T00:00:00Z`);
   // Iterate twice: offset at the guess, then at the corrected instant (handles DST boundaries).
-  let t = guess - offsetMs(guess, timeZone);
-  t = guess - offsetMs(t, timeZone);
-  return t;
+  const t1 = guess - offsetMs(guess, timeZone);
+  const t2 = guess - offsetMs(t1, timeZone);
+  // Where DST starts AT midnight (e.g. America/Santiago, America/Asuncion), local 00:00 does not exist and t2 lands
+  // in the previous civil day; the day then starts at the transition instant (t1). Earliest valid candidate wins.
+  const valid = [t2, t1].filter((t) => civilDate(t, null, timeZone) === date).sort((a, b) => a - b);
+  return valid[0] ?? t2;
 }
 
 /** Offset of `timeZone` from UTC at instant `t`, in ms. */

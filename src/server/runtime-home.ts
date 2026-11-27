@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -48,19 +48,44 @@ const isInside = (child: string, parent: string) => {
 export class UnsafePathError extends Error {}
 
 /**
- * Throws if `target` is inside a cloud-synced folder or inside the repository.
+ * Where `p` really lives: symbolic links and Windows junctions in the nearest EXISTING ancestor are resolved
+ * (fs.realpathSync.native), and the not-yet-created remainder is appended. Without this, a junction such as
+ * %LOCALAPPDATA%\Baseline → C:\Users\me\OneDrive\x would pass a purely textual check.
+ */
+export function realLocation(p: string): string {
+  let dir = path.resolve(p);
+  const rest: string[] = [];
+  for (;;) {
+    try {
+      return path.join(realpathSync.native(dir), ...rest.reverse());
+    } catch {
+      const parent = path.dirname(dir);
+      if (parent === dir) return path.resolve(p);
+      rest.push(path.basename(dir));
+      dir = parent;
+    }
+  }
+}
+
+/**
+ * Throws if `target` is inside a cloud-synced folder or inside the repository, judged both by the path as written
+ * and by where it really lives after resolving symlinks/junctions (the roots are resolved the same way).
  * Called before any sensitive file (DB, config, backup, export) is opened or written.
  */
 export function assertSafeLocation(target: string, opts: { repoRoot?: string; env?: NodeJS.ProcessEnv } = {}): void {
   const env = opts.env ?? process.env;
   const repo = opts.repoRoot ?? process.cwd();
-  for (const root of syncedRoots(env)) {
-    if (isInside(target, root)) throw new UnsafePathError(`Refusing to store sensitive data inside a cloud-synced folder: ${target} (synced root ${root}). Set BASELINE_HOME to a local, non-synced directory.`);
+  const candidates = [...new Set([path.resolve(target), realLocation(target)])];
+  const roots = syncedRoots(env).flatMap((r) => [r, realLocation(r)]);
+  for (const t of candidates) {
+    for (const root of roots) {
+      if (isInside(t, root)) throw new UnsafePathError(`Refusing to store sensitive data inside a cloud-synced folder: ${target} (synced root ${root}). Set BASELINE_HOME to a local, non-synced directory.`);
+    }
+    if (/[\\/](onedrive|dropbox|google drive|icloud ?drive)[^\\/]*[\\/]/i.test(t + path.sep)) {
+      throw new UnsafePathError(`Refusing to store sensitive data in what looks like a cloud-synced folder: ${target}`);
+    }
+    if (isInside(t, repo) || isInside(t, realLocation(repo))) throw new UnsafePathError(`Refusing to store sensitive data inside the repository: ${target}`);
   }
-  if (/[\\/](onedrive|dropbox|google drive|icloud ?drive)[^\\/]*[\\/]/i.test(target + path.sep)) {
-    throw new UnsafePathError(`Refusing to store sensitive data in what looks like a cloud-synced folder: ${target}`);
-  }
-  if (isInside(target, repo)) throw new UnsafePathError(`Refusing to store sensitive data inside the repository: ${target}`);
 }
 
 /** Minimal dotenv parser: KEY=VALUE lines, # comments, optional surrounding quotes. */
@@ -115,7 +140,8 @@ export const SECRET_KEYS = ["APP_PASSWORD_HASH", "SESSION_SECRET", "ENCRYPTION_K
 /** Names of secret keys present in repo-local .env files (which Next.js would load). */
 export function secretsInRepoEnvFiles(repoRoot = process.cwd()): string[] {
   const found: string[] = [];
-  for (const f of [".env", ".env.local", ".env.development.local", ".env.production.local"]) {
+  // Every file Next.js loads automatically.
+  for (const f of [".env", ".env.local", ".env.development", ".env.development.local", ".env.production", ".env.production.local", ".env.test", ".env.test.local"]) {
     const p = path.join(repoRoot, f);
     if (!existsSync(p)) continue;
     const vars = parseEnvFile(readFileSync(p, "utf8"));

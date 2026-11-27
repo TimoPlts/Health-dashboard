@@ -4,10 +4,11 @@ import { NextResponse } from "next/server";
 import { env } from "./env";
 import { SESSION_COOKIE, verifySessionValue } from "./session";
 import { sameOrigin } from "./request";
+import { sessionRevocation } from "./auth-state";
 
 export async function isAuthenticated(): Promise<boolean> {
   const jar = await cookies();
-  return verifySessionValue(jar.get(SESSION_COOKIE)?.value, env().SESSION_SECRET);
+  return verifySessionValue(jar.get(SESSION_COOKIE)?.value, env().SESSION_SECRET, Date.now(), sessionRevocation());
 }
 
 /**

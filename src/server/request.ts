@@ -28,16 +28,35 @@ export function viaHttps(req: Request, publicUrl = process.env.PUBLIC_URL): bool
   return req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase() === "https";
 }
 
+const LOOPBACK_ADDR = /^(127\.\d+\.\d+\.\d+|::1|::ffff:127\.\d+\.\d+\.\d+|\[::1\]|localhost)$/i;
+
 /**
- * Gate in front of everything (before the app password):
- *  - loopback Host (this PC's browser, the supervisor, CLI): allowed;
- *  - any other Host came through Tailscale Serve and must carry a tailnet identity. Public Tailscale Funnel traffic
- *    has none (and is marked Tailscale-Funnel-Request), so the app stays private even if Funnel were switched on;
+ * True when anything about the request says it was forwarded by a proxy (Tailscale Serve/Funnel) rather than sent by
+ * a browser or process on this PC. Next.js only fills X-Forwarded-For/-Host when they are MISSING (`??=`), so a direct
+ * local request carries the loopback socket address and its own Host, while Serve sets the tailnet client's address
+ * and the browser's Host. The Host header alone is client-controlled and is never trusted on its own.
+ */
+export function viaProxy(req: Request): boolean {
+  const h = req.headers;
+  if (h.has("tailscale-funnel-request") || h.has("tailscale-user-login")) return true;
+  const xff = h.get("x-forwarded-for");
+  if (xff && xff.split(",").some((a) => !LOOPBACK_ADDR.test(a.trim()))) return true;
+  const xfh = h.get("x-forwarded-host");
+  if (xfh && xfh.split(",").some((x) => !isLoopbackHost(x.trim()))) return true;
+  return false;
+}
+
+/**
+ * Gate in front of everything (before the app password). Fails closed:
+ *  - Tailscale Funnel (public internet) traffic is always refused;
+ *  - a request with no sign of a proxy AND a loopback Host (this PC's browser, the supervisor, CLI): allowed;
+ *  - anything else came through Tailscale Serve and must carry a tailnet identity (Tailscale sets these headers
+ *    itself and strips client-supplied copies). A forged `Host: localhost` through Serve does not bypass this;
  *  - TAILNET_ALLOWED_LOGINS (comma-separated) optionally restricts access to specific tailnet users.
  */
 export function tailnetAllowed(req: Request, allowedLogins = process.env.TAILNET_ALLOWED_LOGINS): boolean {
-  if (isLoopbackHost(hostOf(req))) return true;
   if (req.headers.has("tailscale-funnel-request")) return false;
+  if (!viaProxy(req) && isLoopbackHost(hostOf(req))) return true;
   const login = req.headers.get("tailscale-user-login")?.trim().toLowerCase();
   if (!login) return false;
   const allowed = (allowedLogins ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);

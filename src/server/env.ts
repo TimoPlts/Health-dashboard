@@ -49,13 +49,15 @@ export function env(): Env {
   if (e.NODE_ENV === "production" && demo) {
     throw new Error("DEMO_MODE is not allowed in production. Fictional data must never be served as real data.");
   }
+  // Fail closed: Next.js loads repo-local .env files automatically, so secrets there would be in use while sitting
+  // in the (public, possibly cloud-synced) repository. Refuse to start until they are moved. Names only, no values.
+  const leaked = secretsInRepoEnvFiles();
+  if (leaked.length) {
+    throw new Error(`[baseline] Refusing to start: secrets found in repo-local env files (${leaked.join(", ")}). Move them with \`npm run configure\` and delete the file.`);
+  }
   if (!demo) {
     // The real health database must never sit in OneDrive or the repo. (Demo DB is fictional.)
     assertSafeLocation(e.DATABASE_PATH);
-    const leaked = secretsInRepoEnvFiles();
-    if (leaked.length) {
-      console.warn(`[baseline] Secrets found in repo-local env files (${leaked.join(", ")}). Move them with \`npm run configure\` and delete the file.`);
-    }
   }
   cached = e;
   return e;

@@ -19,6 +19,7 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { hashPassword } from "../src/server/crypto";
+import { revokeAllSessions } from "../src/server/auth-state";
 import { assertSafeLocation, ensureSafeDir, parseEnvFile, runtimePaths, secretsInRepoEnvFiles } from "../src/server/runtime-home";
 
 const P = runtimePaths();
@@ -105,9 +106,11 @@ async function setPassword(c: Record<string, string>) {
     if (a.length < 12) { console.log("  Too short — use at least 12 characters (a passphrase is fine)."); continue; }
     const b = await promptHidden("  Repeat password: ");
     if (a !== b) { console.log("  Passwords did not match, try again."); continue; }
+    const changed = Boolean(c.APP_PASSWORD_HASH);
     c.APP_PASSWORD_HASH = hashPassword(a);
     writeConfig(c);
     console.log("  ✓ App password saved (only a scrypt hash is stored).");
+    if (changed) { revokeAllSessions(); console.log("  ✓ All existing sessions signed out."); }
     return;
   }
 }

@@ -6,6 +6,7 @@ import { env, isDemoMode } from "@/server/env";
 import { verifyPassword } from "@/server/crypto";
 import { disconnectProvider } from "@/server/connections";
 import { deleteAllData } from "@/server/data/delete";
+import { loginLocked, recordLoginFailure } from "@/server/auth-state";
 
 const Body = z.object({ password: z.string().min(1).max(500), confirm: z.literal("DELETE") });
 
@@ -20,8 +21,13 @@ export async function POST(req: Request) {
   if (isDemoMode()) return NextResponse.json({ error: "Not available in demo mode" }, { status: 400 });
   const p = Body.safeParse(await req.json().catch(() => null));
   if (!p.success) return NextResponse.json({ error: "Type DELETE and your password to confirm." }, { status: 400 });
+  // Shares the login brake, so this password check cannot be used to guess the password faster.
+  if (loginLocked()) return NextResponse.json({ error: "Too many attempts. Try again later." }, { status: 429 });
   const hash = env().APP_PASSWORD_HASH;
-  if (!hash || !verifyPassword(p.data.password, hash)) return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+  if (!hash || !verifyPassword(p.data.password, hash)) {
+    recordLoginFailure();
+    return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
+  }
   const d = db();
   const google = await disconnectProvider(d, "google");
   await disconnectProvider(d, "hevy");
