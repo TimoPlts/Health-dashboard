@@ -199,7 +199,7 @@ Independent flags, each shown with its reason. They are never combined into a di
 
 ### NIGHT-ATTRIBUTED SAMPLES · `nightSampleSeries`, `dailyAttrSeries`
 - Overnight samples (breathing rate by sleep stage) are attributed to the **wake date** of the main sleep session that contains them. Grouping by civil day would split a night at midnight.
-  - Verified on real data: all HRV and breathing-rate samples, and 766 of 769 SpO₂ samples, fall inside a sleep session.
+  - Verified on real data: all HRV and breathing-rate samples, and more than 99 % of SpO₂ samples, fall inside a sleep session.
 - **SpO₂ low end** = Google's `lowerBoundPercentage` reported with the nightly average. Baseline does not take the minimum of single samples, which motion artefacts can dominate.
 
 ### WORKOUT-LABELS · `workout_annotations` (`analytics/workouts.ts`, `lib/metrics/workout-labels.ts`)

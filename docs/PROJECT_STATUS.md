@@ -1,6 +1,6 @@
 # Baseline: project overview
 
-_Last updated: 2026-11-27 · branch `phase-0-foundation` · 0.6.0 (milestones A–C, see CHANGELOG)_
+_Last updated: 2026-11-27 · **v0.6.0, released on `main`** (milestones A–C + security audit, see [CHANGELOG](CHANGELOG.md) and [RELEASE_AUDIT](RELEASE_AUDIT.md)) · development continues on `phase-0-foundation`; native iOS feasibility on `ios-feasibility`_
 
 ## What it is
 Baseline is a private, single-user health and training app for one Fitbit Air wearer.
@@ -21,7 +21,9 @@ Verification levels: **verified on real data** › **tested** (unit/integration/
 | Newly exposed metrics (breathing rate per sleep stage, SpO₂ low end, activity by intensity, AZM by zone) | verified on real data (structure) | night samples fall inside sleep sessions |
 | Workouts from Google sessions + HR | verified on real data (structure) | Fitbit and Hevy-via-Apple-Health duplicates merged |
 | Production server (build, supervisor, Task Scheduler at sign-in) | verified on this PC | crash → healthy in ≈ 3 s; graceful stop; logs in `BASELINE_HOME\logs` |
-| Security headers, no-store caching, tailnet identity gate, login allowlist | verified on this PC (curl against production) | [DEPLOYMENT](DEPLOYMENT.md); `tests/unit/production.test.ts` |
+| Security headers, no-store caching, tailnet identity gate, login allowlist | verified on the production PC (curl against production, 0.5.0) | [DEPLOYMENT](DEPLOYMENT.md); `tests/unit/production.test.ts` |
+| 0.6.0 security hardening: revocable sessions, persistent login brake, fail-closed tailnet gate, CSP, junction-safe paths, repo-secret startup block | tested (unit + production smoke on an isolated build, 24/24; browser CSP pass over every page) | **not yet deployed to the production PC** (next action 1); [RELEASE_AUDIT](RELEASE_AUDIT.md) |
+| Git history, tags, Actions logs and artifacts free of secrets and personal data | verified (gitleaks + manual audit, 2026-11-27) | [RELEASE_AUDIT](RELEASE_AUDIT.md); CI repeats the scan on every push |
 | Tailscale Serve header forwarding | verified (temporary echo server, HTTP mode) | Host preserved; identity headers added |
 | **HTTPS on the tailnet + iPhone install** | **unverified, blocked** | HTTPS certificates are not enabled in the owner's Tailscale admin console (next action 1) |
 | Backups, verify, restore, export, retention | verified on real data | restore exercised end to end; export counts equal the database |
@@ -32,7 +34,7 @@ Verification levels: **verified on real data** › **tested** (unit/integration/
 | Workout labels, sleep detail (WASO, bedtime, overnight graphs, naps), Cardio page | tested (unit, integration, E2E on demo data) | real data: structure only; recommended bedtime needs 5 nights or a wake-up target |
 | Displayed values vs the Google Health app | unverified by the owner | values equal the API exactly |
 
-Tests at `c5c8193`: 184 unit/integration pass, typecheck clean, 12 E2E pass.
+Tests at v0.6.0: 244 unit/integration pass, typecheck clean, 21 E2E (incl. axe) pass, production build OK. CI runs all of them on every push and PR.
 
 ## Problems and constraints
 - **Short history:** baseline-dependent scores show "Calibrating n/14" until enough nights exist. Calibration periods are not shortened.
@@ -42,8 +44,9 @@ Tests at `c5c8193`: 184 unit/integration pass, typecheck clean, 12 E2E pass.
 - Empty for this account: basal energy, altitude, VO₂ max, body fat, glucose, core temperature.
 - Swim-length detections are unconfirmed.
 - Google occasionally times out on large requests; the stream is retried on the next run.
-- The repo (with `node_modules` and `.next`) is in OneDrive. Build artefacts only; see DEPLOYMENT → Known limits.
-- **The GitHub repo is public:** no credentials, real values, probe output or databases are committed ([SECURITY](SECURITY.md)).
+- On the production PC the repo (with `node_modules` and `.next`) is in OneDrive. Build artefacts only; see DEPLOYMENT → Known limits. The development PC keeps it on a local drive.
+- **The GitHub repo is public** (free macOS CI for the iPhone app): no credentials, real values, probe output or databases are committed; commit metadata is public too ([SECURITY → Public repository](SECURITY.md)).
+- Health data at rest is plain SQLite behind a user-only ACL; turn on BitLocker / Device Encryption ([SECURITY → Residual risks](SECURITY.md)).
 
 ## Key decisions
 - PWA + local Node server ([ADR-0001](adr/0001-pwa-plus-server.md)), SQLite ([ADR-0002](adr/0002-sqlite.md)), polling sync ([ADR-0003](adr/0003-polling-sync.md)), `reconcile` for activity ([ADR-0004](adr/0004-reconcile-vs-list.md)), workouts from Google sessions ([ADR-0005](adr/0005-workouts-from-google.md)).
@@ -56,9 +59,9 @@ Tests at `c5c8193`: 184 unit/integration pass, typecheck clean, 12 E2E pass.
 - Design is reviewed only on fictional demo data.
 
 ## Next three actions
-1. **Owner, about 5 min:** Tailscale admin console → DNS → enable **HTTPS Certificates**. Then run `npm run configure -- tailscale` on the PC and follow [DEPLOYMENT → On the iPhone](DEPLOYMENT.md) (Tailscale app, open the address in Safari, Add to Home Screen).
-2. **Owner:** for start-at-boot, run `npm run service -- install` once from an administrator terminal. Compare three days with the Google Health app (`npm run verify:google -- 3 --show-values`).
-3. **Development:** roadmap R1 (manual workout labels) and R4 (sleep page depth) ([ROADMAP](ROADMAP.md)). From 2026-12-08, review recovery and readiness against how you feel.
+1. **Owner, production PC, about 5 min:** deploy v0.6.0 with a verified backup first ([DEPLOYMENT → Upgrading](DEPLOYMENT.md)), then sign in once on the PC and the iPhone (new session format). Switch commits to GitHub's no-reply e-mail ([SECURITY → Public repository](SECURITY.md)).
+2. **Owner, about 5 min:** Tailscale admin console → DNS → enable **HTTPS Certificates** (consider a neutral machine name first: it appears in public certificate logs). Then `npm run configure -- tailscale` and [DEPLOYMENT → On the iPhone](DEPLOYMENT.md). Optional: `npm run service -- install` from an administrator terminal for start at boot.
+3. **From 2026-12-08:** review recovery and readiness against how you feel; compare three days with the Google Health app (`npm run verify:google -- 3 --show-values`). Next features: R7 results once enough journal days exist; R10–R12 are conditional ([ROADMAP](ROADMAP.md)).
 
 ## Commands
 `npm run service -- status|deploy|restart|logs|install` · `npm run configure [-- tailscale|status]` · `npm run data -- backup|list|verify|restore|export|delete-all` · `npm run sync` · `npm run check:analytics` · `npm run verify:google [-- N] [--show-values]` · `npm run dev` (port 3001) · `npm test` · `npm run lint` · `npm run test:e2e` (needs `npm run db:seed-demo`)

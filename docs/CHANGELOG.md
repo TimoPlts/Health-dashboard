@@ -1,6 +1,21 @@
 # Changelog
 
-## 0.6.0 — 2026-11-27 (Advanced analytics and personalisation)
+## 0.6.0 — 2026-11-27 (Advanced analytics and personalisation · first release on `main`)
+### Security audit and release hardening
+Full audit before the first release: [RELEASE_AUDIT](RELEASE_AUDIT.md). No credential or health data was found in the Git history, tags, Actions logs or artifacts.
+- **Sessions can be revoked.** Logout revokes the session server-side, so a copied cookie stops working at once. Changing the app password ends every session. New cookie format (`s2.…`): **everyone signs in once after upgrading.**
+- **The login brake survives restarts** (`auth-state.json` in the runtime folder) and also covers the delete-all password check. Login and logout reject cross-origin requests.
+- **The tailnet gate fails closed.** Funnel is refused first. A request that shows any sign of a proxy needs a Tailscale identity even with a forged `Host: localhost`. Before, a loopback Host skipped the Funnel and allowlist checks (the password was still required).
+- **Path safety resolves symlinks and Windows junctions**, so a junction into OneDrive or the repo is refused.
+- **Secrets in repo-local `.env*` files stop the app from starting** (was a warning). All files Next.js loads are checked.
+- **Content-Security-Policy** and `Cross-Origin-Opener-Policy` headers.
+- **Correctness:** `civilDayBounds` returned a start in the previous day for zones whose DST starts at midnight (e.g. America/Santiago). Europe/Brussels was not affected; no formula changed.
+- **Tests can no longer reach real data:** Vitest always runs with a throwaway `BASELINE_HOME` and `DATABASE_PATH`.
+- **CI** (`.github/workflows/ci.yml`): gitleaks over the full history, a tracked-file check for databases and credentials, typecheck, tests, build, E2E + axe on fictional data, production `npm audit`. Actions pinned to commit SHAs, read-only token, no secrets, no artifacts.
+- **Privacy:** machine-specific Tailscale hostname, a local group name and a real sample count removed from the docs. `.gitignore` covers credentials, keys, databases, exports, backups, logs, temp files and mobile signing files.
+- Version 0.6.0 in `package.json` and the lockfile (the lockfile still had the old name and 0.1.0).
+- Windows/CI install: `npm ci --ignore-scripts && npm rebuild esbuild` (no C++ build tools needed, see TESTING).
+
 ### Milestone C: weight, energy, reports (R5, R2, R7 infrastructure)
 - **Weight & energy (`/body`, from Health → Body):**
   - manual weigh-ins (duplicate-safe; manual entries can be deleted, Google entries cannot) alongside Google records

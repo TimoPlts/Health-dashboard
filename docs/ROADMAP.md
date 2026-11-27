@@ -10,6 +10,8 @@
 | 4 Workouts without Hevy Pro | Google sessions + Fitbit HR, grouping, exclusions (false-detection removal), comparisons | ✅ |
 | 5 Reliability | sync scheduler, backoff, cross-process lock, status UI | ✅ |
 | 6 Production readiness | calculation audit ([FEATURE_AUDIT](FEATURE_AUDIT.md)), Tailscale HTTPS + tailnet gate, supervised autostart, PWA, backups/restore/export/retention/delete-all | ✅ 2026-11-26 |
+| 7 Personalisation (0.6.0) | Milestones A–C: R1–R6, R8, R9 | ✅ 2026-11-27 |
+| 8 Security audit & first release | Git/history/Actions audit, revocable sessions, persistent login brake, fail-closed tailnet gate, CSP, CI with secret scanning ([RELEASE_AUDIT](RELEASE_AUDIT.md)) | ✅ v0.6.0 on `main` |
 
 ## Next: prioritised features
 Ranked by **usefulness** for daily use, **feasibility** with data Baseline already has, and **readiness** (how much history the feature needs). Each one is built one at a time, with the usual rules: documented method, tests, missing ≠ 0, no AI.
@@ -33,7 +35,8 @@ Ranked by **usefulness** for daily use, **feasibility** with data Baseline alrea
 
 ## Infrastructure (as needed)
 - Start at boot without signing in: `npm run service -- install` from an administrator terminal ([DEPLOYMENT](DEPLOYMENT.md)).
-- Move the repo out of OneDrive to remove the `node_modules`/`.next` sync caveat.
+- Move the repo out of OneDrive to remove the `node_modules`/`.next` sync caveat (the development PC already keeps it on a local drive).
+- Native iOS app: feasibility branch `ios-feasibility` (Capacitor, free macOS CI builds). Before it holds real data: on-device database encryption (the POC has `iosIsEncryption: false`), iOS Data Protection, Keychain for tokens, and actions pinned to commit SHAs like `ci.yml`.
 - Google webhooks (instead of polling) would need a public endpoint. Not planned, because the app stays tailnet-only.
 
 ## Calibration

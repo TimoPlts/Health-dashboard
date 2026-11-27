@@ -4,14 +4,17 @@ A private, single-user health & training app that shows **Fitbit Air** data from
 
 > Current state, problems, decisions and next actions: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md).
 
+Version **0.6.0** (first release on `main`; [CHANGELOG](docs/CHANGELOG.md), [release audit](docs/RELEASE_AUDIT.md)).
+
 ## Run it (Windows)
+Node 22 LTS or newer. No C++ build tools are needed (better-sqlite3 ships prebuilt binaries):
 ```powershell
-npm install
+npm ci --ignore-scripts; npm rebuild esbuild    # plain `npm ci` would try to compile better-sqlite3, see docs/TESTING.md
 npm run configure      # hidden prompts: app password (+ Google OAuth client when you have it)
 npm run dev            # development: http://localhost:3001 (bound to 127.0.0.1)
 npm run service -- install; npm run service -- deploy   # production, auto-start, see docs/DEPLOYMENT.md
 ```
-Secrets, the database, backups and reports live in `%LOCALAPPDATA%\Baseline`, **outside OneDrive and Git** (enforced; see [docs/SECURITY.md](docs/SECURITY.md)). Connecting accounts: [docs/SETUP_GOOGLE.md](docs/SETUP_GOOGLE.md).
+Secrets, the database, backups and reports live in `%LOCALAPPDATA%\Baseline`, **outside OneDrive and Git** (enforced; see [docs/SECURITY.md](docs/SECURITY.md)). This repository is public (free macOS CI for the future iPhone app): it contains code, docs and fictional test data only. Connecting accounts: [docs/SETUP_GOOGLE.md](docs/SETUP_GOOGLE.md).
 
 UI preview with fictional data: `npm run db:seed-demo`, then `$env:DEMO_MODE=1; npx next dev`.
 
@@ -19,7 +22,8 @@ UI preview with fictional data: `npm run db:seed-demo`, then `$env:DEMO_MODE=1; 
 | | |
 |---|---|
 | `npm run configure [-- status\|password\|google]` | manage local secrets (never echoed) |
-| `npm test` · `npm run lint` · `npm run test:e2e` | tests · typecheck · Playwright + axe + screenshots |
+| `npm test` · `npm run lint` · `npm run test:e2e` | tests · typecheck · Playwright + axe + screenshots (fictional demo data) |
+| `npm run build` | production build (CI runs all checks plus a gitleaks secret scan on every push and PR) |
 | `npm run sync` | CLI sync (schedulable via Task Scheduler) |
 | `npm run probe:google` · `npm run probe:hevy` | real-data structure probes (no values) |
 | `npm run backup` | consistent DB backup into the runtime folder |

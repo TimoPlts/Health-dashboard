@@ -10,19 +10,19 @@ iPhone (Tailscale app) ──WireGuard──▶ tailscaled on the PC ──HTTPS
 
 ## Layers of protection
 1. **Network:** Next.js listens on `127.0.0.1` only. The single way in from another device is **Tailscale Serve**, reachable only from devices in your tailnet. Funnel (public internet) is never used.
-2. **Tailnet identity gate** (`src/proxy.ts → tailnetAllowed`): every request that came through Serve must carry Tailscale's identity header. Requests without one, which is what Funnel traffic looks like, are refused with 403. `TAILNET_ALLOWED_LOGINS` limits access to your own Tailscale login, so other people or devices shared into your tailnet are refused too.
-3. **App password** and a signed, httpOnly, Secure, SameSite=Lax session cookie. The 30-day session is extended automatically while you use the app.
+2. **Tailnet identity gate** (`src/proxy.ts → tailnetAllowed`, fails closed): Funnel traffic is always refused with 403. Every request that shows any sign of coming through a proxy must carry Tailscale's identity header, even if its Host says `localhost`. `TAILNET_ALLOWED_LOGINS` limits access to your own Tailscale login, so other people or devices shared into your tailnet are refused too.
+3. **App password** and a signed, httpOnly, Secure, SameSite=Lax session cookie. The 30-day session is extended automatically while you use the app. Logging out revokes that session on the server; changing the password signs out every device. 10 wrong passwords in 15 minutes lock login, also across restarts.
 4. **No caching of health data:** every page and API response is `Cache-Control: private, no-store`. Only hashed build files and icons are cacheable.
    - There is deliberately **no service worker**, so no health data is stored offline on the phone. The app needs a connection to the PC.
 
-All of this is covered by `tests/unit/production.test.ts`. Header forwarding was verified against Tailscale 1.102 on this PC: Host is preserved, and `X-Forwarded-Host` and `Tailscale-User-Login` are added.
+All of this is covered by `tests/unit/production.test.ts` and `tests/unit/security.test.ts`. Header forwarding was verified against Tailscale 1.102 on the production PC: Host is preserved, and `X-Forwarded-Host` and `Tailscale-User-Login` are added.
 
 ## One-time setup
 ### On the PC
 1. **Tailscale admin console** (login.tailscale.com → DNS):
    - MagicDNS: on (already on).
    - **HTTPS Certificates: Enable.**
-   - Privacy note: the certificate puts the machine's name (e.g. `laptop-xxxx.tailXXXX.ts.net`) in public Certificate Transparency logs. It does not grant any access. If you prefer a neutral name, rename the machine first (Machines → ⋯ → Edit machine name, e.g. `baseline`).
+   - Privacy note: the certificate puts the machine's name (e.g. `<machine-name>.<tailnet-name>.ts.net`) in public Certificate Transparency logs. It does not grant any access. If you prefer a neutral name, rename the machine first (Machines → ⋯ → Edit machine name, e.g. `baseline`).
 2. Run:
    ```powershell
    npm run configure -- tailscale    # sets PUBLIC_URL + your login as the only allowed user, starts tailnet-only HTTPS
@@ -54,6 +54,17 @@ All of this is covered by `tests/unit/production.test.ts`. Header forwarding was
 
 - **Sync:** the server syncs Google Health every 30 minutes (Settings → Personal). The Settings page shows the last and next sync and the server state.
 - **Reconnect Google:** do it on the PC at `http://localhost:3000/settings`. The OAuth redirect is registered for localhost, so it does not work from the iPhone.
+- **Upgrading (e.g. to 0.6.0) — back up first.** On the production PC:
+  ```powershell
+  git fetch; git switch main; git pull --ff-only
+  npm run data -- backup                     # consistent backup of the live database
+  npm run data -- list                       # note the newest backup's name
+  npm run data -- verify <that-backup>       # must report ok (integrity + tables + counts)
+  npm ci --ignore-scripts; npm rebuild esbuild
+  npm run service -- deploy                  # stop → build → start
+  npm run service -- status                  # healthy, last sync OK
+  ```
+  0.6.0 changes the session cookie format, so the PC browser and the iPhone each sign in **once** after the upgrade. If anything is wrong: `npm run data -- restore <that-backup>`.
 - **Development:** `npm run dev` now uses port **3001**, so it can run next to the production service. E2E uses 3100.
 
 ## Reliability
