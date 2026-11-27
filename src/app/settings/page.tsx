@@ -5,7 +5,7 @@ import { getSettings } from "@/server/settings";
 import { schedulerState } from "@/server/sync/scheduler";
 import { isSyncRunning } from "@/server/sync/run";
 import { serverStatus } from "@/server/server-status";
-import { Badge, Glass, LargeTitle, Page, SectionHeader } from "@/ui/kit";
+import { Badge, Glass, LargeTitle, Page, Row, SectionHeader } from "@/ui/kit";
 import { fmtRelative } from "@/ui/format";
 import { SyncStatus } from "@/ui/SyncStatus";
 import { ConnectGoogle, DataControls, DisconnectButton, HevyKeyForm, LogoutButton, PrefsForm } from "./actions";
@@ -75,6 +75,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <SectionHeader>Personal</SectionHeader>
       <Glass className="overflow-hidden">
         <PrefsForm wakeMin={s.goals.wakeMin} sleepNeedMin={s.sleepNeedMin} hrMaxOverride={s.hrMaxOverride} autoSyncMinutes={s.autoSyncMinutes} googleHrMax={s.profileAge ? 220 - s.profileAge : null} disabled={isDemoMode()} />
+      </Glass>
+
+      <Glass className="list mt-3 overflow-hidden">
+        <Row href="/goals" icon="check" tone="activity" title="Goals" subtitle="Daily and weekly targets" />
+        <Row href="/journal" icon="calendar" tone="recovery" title="Journal" subtitle="Habits you log each day" />
       </Glass>
 
       <SectionHeader>Connections</SectionHeader>

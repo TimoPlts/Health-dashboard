@@ -9,7 +9,8 @@ import { openDatabase } from "../src/server/db/client";
 import { emptyBatch, type SourceDescriptor, type NormalizedBatch } from "../src/server/providers/google/normalize";
 import { writeBatch } from "../src/server/store";
 import { civilDayBounds } from "../src/lib/time";
-import { setSetting } from "../src/server/settings";
+import { ensureDefaultHabits, listHabits, setEntry } from "../src/server/journal";
+import { EMPTY_GOALS, setSetting } from "../src/server/settings";
 import { computeDerived } from "../src/server/analytics/derive";
 import { dateRange } from "../src/server/analytics/series";
 
@@ -145,6 +146,17 @@ for (let o = -(DAYS - 1); o <= 0; o++) {
 }
 
 computeDerived(db, dateRange(dayStr(-(DAYS - 1)), today), TZ);
+// Fictional goals and journal entries (every third habit/day left unlogged on purpose).
+setSetting(db, "goals", { ...EMPTY_GOALS, stepsDaily: 9000, sleepMin: 450, bedtimeMin: 23 * 60, wakeMin: 7 * 60, azmWeekly: 150, zone2WeeklyMin: 120, cardioSessionsWeekly: 3 });
+ensureDefaultHabits(db);
+for (const [hi, h] of listHabits(db).entries()) {
+  for (let o = -27; o <= -1; o++) {
+    if ((o + hi) % 3 === 0) continue;
+    const v = h.kind === "boolean" ? ((o + hi) % 2 === 0 ? 1 : 0) : h.kind === "scale" ? 1 + (Math.abs(o * 7 + hi) % 5) : Math.abs(o + hi) % 4;
+    setEntry(db, h.id, dayStr(o), v);
+  }
+}
+
 // One labelled workout (fictional owner label), written for both sessions of the grouped workout.
 const lastStrength = db.$client.prepare("select id, start_ms from exercise_sessions where id like 'demo-ex-hevy-%' order by start_ms desc limit 1").get() as { id: string } | undefined;
 if (lastStrength) {

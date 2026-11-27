@@ -24,7 +24,11 @@ Schema source of truth: `src/server/db/schema.ts`. Migrations: `src/server/db/mi
 | `hevy_exercise_templates` | id | muscle groups, equipment |
 | `sync_state` | (provider, stream) | synced-through, backfill start, cursor, last success/error, row counts |
 | `sync_runs` | id | run log (trigger, status, per-stream stats; no health values) |
-| `settings` | key | JSON values (UI planned) |
+| `settings` | key | JSON values: sleep need, HRmax override, sync interval, retention, `goals`, `todayLayout`, … |
+| `derived_daily` | (metric, date) | cache of Baseline's per-day calculations (TRIMP, zone minutes, worn time); safe to drop |
+| `exercise_exclusions` | session_id | owner's exclusions of provider sessions (provider rows untouched) |
+| `workout_annotations` | session_id | owner's workout name, category, effort 1–10 (written for every session of a grouped workout) |
+| `habits` / `habit_entries` | id / (habit_id, date) | owner-defined journal habits; one value per habit per day, no row = not logged |
 
 ## Units
 HR bpm · HRV ms · SpO₂ % · temperature °C · distance m (Google mm → m) · weight kg (Google g → kg) · height m · energy kcal · durations s (minutes where named `min`) · respiratory rate breaths/min.
@@ -32,4 +36,4 @@ HR bpm · HRV ms · SpO₂ % · temperature °C · distance m (Google mm → m) 
 ## Backup & restore
 - Location: `%LOCALAPPDATA%\Baseline\data\baseline.db` (see SECURITY.md); the app refuses OneDrive/repo paths.
 - Backup: `npm run backup` → `%LOCALAPPDATA%\Baseline\backups\` (consistent online backup). Keep `ENCRYPTION_KEY` (in `config.env`) in a password manager: it is needed to decrypt stored tokens. Without it the data stays readable, but providers must be reconnected.
-- Restore: stop the app, copy the backup to `DATABASE_PATH`, start. Migrations run automatically.
+- Restore: `npm run data -- restore <backup>` (verifies, keeps a safety copy, stops and restarts the service). Migrations run automatically.

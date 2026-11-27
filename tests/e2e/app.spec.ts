@@ -130,3 +130,50 @@ test("sleep detail, cardio and workout labels", async ({ page }) => {
   await expect(page.getByText("Effort 8/10")).toBeVisible();
   await axe(page); await noOverflow(page);
 });
+
+test("goals, journal and customisable Today", async ({ page }) => {
+  await login(page);
+  page.on("dialog", (d) => void d.accept());
+  await page.goto("/goals");
+  await expect(page.getByRole("heading", { name: "Goals" })).toBeVisible();
+  await page.waitForTimeout(400);
+  await shot(page, "goals"); await axe(page); await noOverflow(page);
+  await page.getByRole("button", { name: "Edit" }).first().click();
+  const g = page.getByRole("dialog", { name: "Goals" });
+  await g.getByLabel("Steps goal").fill("10000");
+  await g.getByRole("button", { name: "Save goals" }).click();
+  await expect(page.getByText("/ 10,000").first()).toBeVisible();
+
+  await page.goto("/journal");
+  await expect(page.getByRole("heading", { name: "Journal" })).toBeVisible();
+  const supplements = page.getByRole("group", { name: "Supplements" });
+  await supplements.getByRole("button", { name: "Yes" }).click();
+  await expect(supplements.getByRole("button", { name: "Yes" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Clear Supplements" }).click();
+  await expect(supplements.getByRole("button", { name: "Yes" })).toHaveAttribute("aria-pressed", "false");
+  await page.waitForTimeout(300);
+  await shot(page, "journal"); await axe(page); await noOverflow(page);
+  await page.getByRole("button", { name: "Manage habits" }).click();
+  const m = page.getByRole("dialog", { name: "Manage habits" });
+  await m.getByLabel("New habit name").fill("Meditation");
+  await m.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(m.getByLabel("Name of Meditation").first()).toBeVisible();
+  await shot(page, "habits");
+  await page.keyboard.press("Escape");
+
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /Journal/ }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Customise Today" }).click();
+  const c = page.getByRole("dialog", { name: "Customise Today" });
+  await c.getByRole("switch", { name: "Show Workouts" }).click();
+  await c.getByRole("button", { name: "Move Journal up" }).click();
+  await shot(page, "customise");
+  await c.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText("No workouts recorded on this day.")).toHaveCount(0);
+  await axe(page); await noOverflow(page);
+  await page.getByRole("button", { name: "Customise Today" }).click();
+  await page.getByRole("dialog", { name: "Customise Today" }).getByRole("button", { name: "Reset" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Workouts" })).toBeVisible();
+});

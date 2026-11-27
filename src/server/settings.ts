@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { DB } from "./db/client";
 import * as t from "./db/schema";
 import { DEFAULT_SLEEP_NEED_MIN } from "@/lib/metrics/sleep";
+import type { TodayLayout } from "@/lib/today-layout";
 
 /**
  * Personal targets. Every goal is optional (null = not set); nothing is assumed for you. Times are minutes after
@@ -33,8 +34,12 @@ export interface AppSettings {
   /** Number of daily automatic backups to keep; 0 = no automatic backups. */
   backupKeep: number;
   goals: Goals;
+  /** Saved Today layout (resolved against the current cards by lib/today-layout.ts); null = default. */
+  todayLayout: Partial<TodayLayout> | null;
+  /** The suggested habits were created once; removing them later does not bring them back. */
+  habitsSeeded: boolean;
 }
-const DEFAULTS: AppSettings = { sleepNeedMin: DEFAULT_SLEEP_NEED_MIN, hrMaxOverride: null, profileAge: null, autoSyncMinutes: 30, rawRetentionDays: 90, backupKeep: 14, goals: EMPTY_GOALS };
+const DEFAULTS: AppSettings = { sleepNeedMin: DEFAULT_SLEEP_NEED_MIN, hrMaxOverride: null, profileAge: null, autoSyncMinutes: 30, rawRetentionDays: 90, backupKeep: 14, goals: EMPTY_GOALS, todayLayout: null, habitsSeeded: false };
 
 export function getSettings(db: DB): AppSettings {
   const rows = db.select().from(t.settings).all();

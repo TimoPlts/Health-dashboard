@@ -224,6 +224,30 @@ Independent flags, each shown with its reason. They are never combined into a di
   - Google's zones (heart-rate reserve) are shown separately as AZM by zone.
 - **Load ratio** is shown with its limitation: it describes change in load. It is not an injury prediction and not a safe-training target (LOAD-ACWR).
 
+### GOALS · `goals@1` (`lib/metrics/goals.ts`, `analytics/goals.ts`)
+- **Goals:** all optional; nothing is assumed.
+  - Daily: steps, active minutes, sleep, in bed by, wake-up time.
+  - Weekly (ISO weeks): Active Zone Minutes, Zone 2 minutes, cardio sessions.
+- **Status:**
+  - **met** as soon as the target is reached
+  - **missed** only when the day or week is complete and the target was not reached
+  - **in progress** for the running day or week
+  - **no data** when nothing was recorded; never counted as missed
+- **Clock goals:** *in bed by* is met up to 15 min after the target. *Wake-up* is met within ±30 min of the target. Both are evaluated on the night that ends that morning; times are compared across midnight.
+- **Completion rate** = met ÷ (met + missed) over the last 28 days or 8 weeks. Periods without data are left out.
+- **Limitation:** sleep and bedtime use Google's sleep session times, not when you tried to fall asleep.
+
+### JOURNAL · `journal@1` (`lib/metrics/journal.ts`, `server/journal.ts`)
+- **Habits:** defined by you, as yes/no (stored 1/0), an amount with a unit, or a 1–5 scale.
+  - Eight suggested habits are created once and can be edited or removed: caffeine, supplements, creatine, stress, late meal, alcohol, stretching, fatigue.
+- **No entry means not logged**, which is never read as "no" or zero. Clearing a habit removes the entry.
+- **Removing a habit:** archiving keeps its history (it can be restored); deleting removes the habit and all its entries.
+- No associations are computed in this milestone (Milestone C adds safeguarded associations).
+
+### TODAY-LAYOUT (`lib/today-layout.ts`)
+- **Cards:** recovery/sleep/load, goals, last night, favourite metrics (up to 8), vitals, activity, journal, workouts. Each can be reordered or hidden.
+- **Saved layouts:** unknown ids are dropped. Cards added in later versions are appended at the end, so your order is never shuffled. Reset deletes the saved layout.
+
 ### Aggregation rules (all metric pages)
 - Weekly, monthly and period values are the **mean of the days that have data**. For additive metrics (steps, energy, minutes) that is the mean daily total. Missing days are never counted as 0. The number of days with data is shown next to every average.
 - **Incomplete day:** for daily totals (`agg: sum`: steps, energy, minutes, load, sedentary time) the current day is shown as "so far" but left out of averages, min/max, comparisons and baselines. The change vs baseline is hidden for it.

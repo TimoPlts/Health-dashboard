@@ -27,6 +27,7 @@ Verification levels: **verified on real data** › **tested** (unit/integration/
 | Backups, verify, restore, export, retention | verified on real data | restore exercised end to end; export counts equal the database |
 | Delete all data | tested (fictional) | not run on real data, by design |
 | UI (all pages, dark/light, phone/desktop) | tested on the fictional demo DB | Playwright + axe, 12/12 |
+| Goals, habit journal, customisable Today | tested (unit, integration, E2E on demo data) | your goals and habits start empty or as suggestions; nothing assumed |
 | Workout labels, sleep detail (WASO, bedtime, overnight graphs, naps), Cardio page | tested (unit, integration, E2E on demo data) | real data: structure only; recommended bedtime needs 5 nights or a wake-up target |
 | Displayed values vs the Google Health app | unverified by the owner | values equal the API exactly |
 

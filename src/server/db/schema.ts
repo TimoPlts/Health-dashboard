@@ -291,3 +291,32 @@ export const workoutAnnotations = sqliteTable("workout_annotations", {
   effort: integer("effort"),
   updatedAt: integer("updated_at").notNull(),
 });
+
+/**
+ * Habit journal (owner-defined). kind: boolean (stored 1 / 0), number (count or amount, with unit) or scale (1–5).
+ * Archived habits keep their entries and can be restored.
+ */
+export const habits = sqliteTable("habits", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["boolean", "number", "scale"] }).notNull(),
+  unit: text("unit"),
+  min: real("min"),
+  max: real("max"),
+  step: real("step"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  archivedAt: integer("archived_at"),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** One value per habit per civil day. No row = not logged (never read as "no" or zero). */
+export const habitEntries = sqliteTable(
+  "habit_entries",
+  {
+    habitId: text("habit_id").notNull(),
+    date: text("date").notNull(),
+    value: real("value").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.habitId, t.date] }), index("habit_entries_date").on(t.date)],
+);

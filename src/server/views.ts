@@ -8,6 +8,9 @@ import { dateRange, nightSeries, shiftDate } from "./analytics/series";
 import { metricSeries, RANGE_DAYS, type MetricBaseline, type RangeKey } from "./analytics/values";
 import { listWorkouts, workoutHr } from "./analytics/workouts";
 import { sleepDetail } from "./analytics/sleep-detail";
+import { goalsView } from "./analytics/goals";
+import { ensureDefaultHabits, entriesBetween, listHabits } from "./journal";
+import { resolveLayout } from "@/lib/today-layout";
 import { getSettings } from "./settings";
 import { todayDate } from "./queries";
 
@@ -73,6 +76,15 @@ export function todayView(date: string) {
     vitals: ["resting_hr", "hrv", "respiratory_rate", "spo2", "skin_temp_abs", "sleeping_hr"].map(vital),
     activity: { steps: activity("steps"), distance: activity("distance"), activeKcal: activity("active_kcal"), totalKcal: activity("total_kcal"), azm: activity("azm"), floors: activity("floors") },
     zone2: activity("zone2"),
+    layout: resolveLayout(settings.todayLayout, new Set(METRICS.map((m) => m.id))),
+    favorites: resolveLayout(settings.todayLayout, new Set(METRICS.map((m) => m.id))).favorites.map(vital),
+    goals: date === today ? goalsView(db, today, fb, tz).set : [],
+    journal: (() => {
+      ensureDefaultHabits(db);
+      const habits = listHabits(db);
+      const e = entriesBetween(db, date, date);
+      return { date, habits: habits.length, logged: habits.filter((h) => e.get(h.id)?.has(date)).length };
+    })(),
     workouts,
     sleepStages: day.night ? db.all(sql`select start_ms as startMs, end_ms as endMs, stage from sleep_stages where session_id = ${day.night.id} and is_short_awakening = 0 order by start_ms`) as { startMs: number; endMs: number; stage: string }[] : [],
   };

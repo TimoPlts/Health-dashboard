@@ -38,7 +38,7 @@ export default async function CardioPage({ searchParams }: { searchParams: Promi
             ? <Link aria-label="Next week" href={`/cardio?week=${nextWeek}`} scroll={false} className="pressable grid size-9 place-items-center rounded-full text-ink-2"><Icon name="chevronRight" size={18} strokeWidth={2.4} /></Link>
             : <button aria-label="Next week" disabled className="grid size-9 place-items-center rounded-full text-ink-2 opacity-30"><Icon name="chevronRight" size={18} strokeWidth={2.4} /></button>}
         </div>
-        <Link href="/settings#personal" className="text-[13px] font-semibold text-ink-2 underline decoration-[var(--hairline)] underline-offset-4">Settings</Link>
+        <Link href="/goals" className="text-[13px] font-semibold text-ink-2 underline decoration-[var(--hairline)] underline-offset-4">Weekly goals</Link>
       </div>
 
       <Glass thick className="rise grid grid-cols-3 items-start gap-1 px-3 pt-5 pb-4">

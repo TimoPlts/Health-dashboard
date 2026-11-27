@@ -1,6 +1,22 @@
 # Changelog
 
 ## 0.6.0 — unreleased (Advanced analytics and personalisation)
+### Milestone B: personalisation (R6, R8, R9)
+- **Goals (`/goals`):**
+  - daily: steps, active minutes, sleep, in bed by, wake-up
+  - weekly: Active Zone Minutes, Zone 2, cardio sessions
+  - progress rings, a 28-day / 8-week history (shape-coded: met, missed, in progress, no data) and completion rates
+  - no data is never counted as missed
+- **Journal (`/journal`):**
+  - quick daily entry for yes/no, amount and 1–5 habits, with optimistic saving and clearing (not logged ≠ no)
+  - eight suggested habits; add, rename, reorder, archive (keeps history), restore, delete
+  - 4-week history grid
+- **Customisable Today:**
+  - reorder (drag handle or arrows), show/hide cards, pick up to 8 favourite metrics, reset
+  - new Goals, Favourites and Journal cards; the layout is saved in the database
+- Settings links to Goals and Journal. Exports include workout labels, habits and journal entries.
+- Fixed before release: resetting the layout failed (null in settings), caught by E2E.
+
 ### Milestone A: sleep, training, cardio (R1, R3, R4)
 - **Workouts:**
   - your own name, category (push / pull / legs / upper / full body / cardio / rest) and effort 1–10

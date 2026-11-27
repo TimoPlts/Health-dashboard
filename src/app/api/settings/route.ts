@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { guardMutation } from "@/server/guard";
 import { db } from "@/server/db/client";
-import { getSettings, setSetting } from "@/server/settings";
+import { deleteSetting, getSettings, setSetting } from "@/server/settings";
+import { resolveLayout, type TodayLayout } from "@/lib/today-layout";
+import { METRICS } from "@/server/analytics/registry";
 import { rescheduleFromSettings } from "@/server/sync/scheduler";
 import { computeDerived } from "@/server/analytics/derive";
 import { env } from "@/server/env";
@@ -26,6 +28,11 @@ const Body = z.object({
     wakeMin: z.number().int().min(0).max(1439).nullable(),
     weightKg: z.number().min(30).max(300).nullable(),
   }).partial().optional(),
+  todayLayout: z.object({
+    order: z.array(z.string().max(32)).max(20),
+    hidden: z.array(z.string().max(32)).max(20),
+    favorites: z.array(z.string().max(40)).max(8),
+  }).nullable().optional(),
 });
 
 /** Update owner preferences. Changing HRmax recomputes derived zone/load metrics for all days. */
@@ -39,6 +46,8 @@ export async function POST(req: Request) {
   if (p.data.rawRetentionDays !== undefined) setSetting(d, "rawRetentionDays", p.data.rawRetentionDays);
   if (p.data.backupKeep !== undefined) setSetting(d, "backupKeep", p.data.backupKeep);
   if (p.data.goals) setSetting(d, "goals", { ...getSettings(d).goals, ...p.data.goals });
+  if (p.data.todayLayout === null) deleteSetting(d, "todayLayout"); // reset to the default layout
+  else if (p.data.todayLayout) setSetting(d, "todayLayout", resolveLayout(p.data.todayLayout as Partial<TodayLayout>, new Set(METRICS.map((m) => m.id))));
   if (p.data.autoSyncMinutes !== undefined) { setSetting(d, "autoSyncMinutes", p.data.autoSyncMinutes); rescheduleFromSettings(); }
   if (p.data.hrMaxOverride !== undefined) {
     setSetting(d, "hrMaxOverride", p.data.hrMaxOverride);
