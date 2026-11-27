@@ -1,0 +1,107 @@
+# This repository is PUBLIC. Real secrets and health data live only in %LOCALAPPDATA%\Baseline (BASELINE_HOME),
+# never in the repo. These rules are a second line of defence; CI also runs a secret scan (.github/workflows/ci.yml).
+
+# dependencies & build output
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# local tooling (portable Node, scanners)
+.tools/
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+config.env
+*config.env
+client_secret*.json
+credentials*.json
+*-credentials.json
+service-account*.json
+token*.json
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*.jks
+*.keystore
+*.secret
+*.secrets
+id_rsa*
+id_ed25519*
+
+# personal data — never commit (fictional fixtures live in tests/fixtures/*.ts, which stay tracked)
+data/*
+!data/.gitkeep
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+auth-state.json
+sync.lock
+exports/
+export-*/
+*.csv
+probe-output/
+backups/
+*.bak
+*.backup
+*.orig
+*.dump
+
+# logs & temporary files
+logs/
+*.log
+npm-debug.log*
+*.tmp
+*.temp
+tmp/
+temp/
+.cache/
+*.swp
+*~
+
+# mobile signing & builds (local only; CI builds unsigned)
+*.ipa
+*.apk
+*.aab
+*.xcarchive/
+*.mobileprovision
+*.provisionprofile
+*.certSigningRequest
+*.dSYM/
+*.dSYM.zip
+ios-poc/ios/
+ios-poc/build/
+ios-poc/www/main.js
+
+# test artifacts (screenshots come from the fictional demo DB, but are still kept out of Git)
+test-results/
+playwright-report/
+blob-report/
+screenshots/
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.claude/settings.local.json

@@ -1,0 +1,94 @@
+# Public CI for Baseline. This repository is PUBLIC: CI uses FICTIONAL data only (unit fixtures, in-memory/temporary
+# databases, the generated demo DB) and has no access to the owner's runtime folder, database or secrets. No
+# repository secrets are used, and nothing is uploaded as an artifact (screenshots/traces stay on the runner).
+name: CI
+
+on:
+  push:
+    branches: [main, phase-0-foundation]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks, full history)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks 8.30.1 (checksum-verified release binary)
+        run: |
+          set -euo pipefail
+          V=8.30.1
+          F=gitleaks_${V}_linux_x64.tar.gz
+          curl -sSLfO "https://github.com/gitleaks/gitleaks/releases/download/v${V}/${F}"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  ${F}" | sha256sum -c -
+          tar -xzf "$F" gitleaks
+          ./gitleaks version
+
+      - name: Scan every commit on every fetched ref (findings are redacted)
+        run: ./gitleaks git --redact --no-banner --exit-code 1 --log-opts="--all" .
+
+      - name: Scan the checked-out tree
+        run: ./gitleaks dir --redact --no-banner --exit-code 1 .
+
+      - name: Refuse tracked personal-data and credential files
+        run: |
+          set -euo pipefail
+          bad=$(git ls-files | grep -Ei '(^|/)(config\.env|client_secret[^/]*\.json|credentials[^/]*\.json|auth-state\.json)$|\.(db|db-wal|db-shm|sqlite3?|csv|ipa|p12|pfx|pem|key|mobileprovision|provisionprofile)$' || true)
+          if [ -n "$bad" ]; then echo "::error::Sensitive file types are tracked:"; echo "$bad"; exit 1; fi
+          echo "No sensitive file types tracked."
+
+  test:
+    name: Typecheck, tests, build, E2E (fictional data)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      BASELINE_DISABLE_SCHEDULER: "1"
+    steps:
+      # Throwaway runtime home: the app and tests can only ever see this empty folder.
+      # (The runner context is not available in job-level env, so it is set here.)
+      - name: Isolated runtime home
+        run: echo "BASELINE_HOME=$RUNNER_TEMP/baseline-ci" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # better-sqlite3 ships prebuilt N-API binaries; `npm ci` would still run node-gyp because the lockfile does not
+      # record its `gypfile: false` (see docs/TESTING.md). esbuild is the only dependency with a real install script.
+      - name: Install dependencies (lockfile, no implicit native rebuild)
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild esbuild
+
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: E2E + accessibility on the fictional demo database
+        run: |
+          npm run db:seed-demo
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - name: npm audit (production dependencies)
+        run: npm audit --omit=dev --audit-level=high
