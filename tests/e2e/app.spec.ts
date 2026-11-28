@@ -249,11 +249,14 @@ test("v0.7: health monitor, calendar, timeline and training planner", async ({ p
   await expect(page.getByRole("img", { name: "Sleep stages" })).toBeVisible();
   const tl = page.getByRole("group", { name: /^Day timeline/ });
   const box = (await tl.boundingBox())!;
-  await page.mouse.move(box.x + box.width * 0.4, box.y + 60);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.55, box.y + 60, { steps: 5 });
-  await page.mouse.up();
-  await expect(page.getByRole("region", { name: "Selected interval" }).getByRole("heading")).toHaveText(/\d\d:\d\d – \d\d:\d\d/);
+  // Retry until the client component has hydrated (a drag before that is a no-op on a server-rendered page).
+  await expect(async () => {
+    await page.mouse.move(box.x + box.width * 0.4, box.y + 60);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.55, box.y + 60, { steps: 5 });
+    await page.mouse.up();
+    await expect(page.getByRole("region", { name: "Selected interval" }).getByRole("heading")).toHaveText(/\d\d:\d\d – \d\d:\d\d/, { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await page.getByRole("button", { name: "Last night" }).click();
   await expect(page.getByRole("region", { name: "Selected interval" })).toContainText(/Deep \d+m/);
   await page.waitForTimeout(300);
