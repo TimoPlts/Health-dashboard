@@ -18,7 +18,7 @@ import { dateRange } from "../analytics/series";
  */
 export const EXPORT_TABLES = [
   "heart_rate_samples", "observations", "daily_metrics", "sleep_sessions", "sleep_stages", "exercise_sessions",
-  "exercise_exclusions", "workout_annotations", "habits", "habit_entries", "derived_daily", "sources", "settings", "sync_runs", "sync_state",
+  "exercise_exclusions", "workout_annotations", "habits", "habit_entries", "weight_day_choice", "weight_phases", "derived_daily", "sources", "settings", "sync_runs", "sync_state",
   "hevy_workouts", "hevy_exercises", "hevy_sets", "hevy_exercise_templates",
 ] as const;
 

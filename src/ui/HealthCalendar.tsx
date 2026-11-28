@@ -10,9 +10,9 @@ import { Icon } from "./icons";
 import { cx } from "./kit";
 import { fmtDuration, fmtNumber } from "./format";
 
-export type CalendarMetric = "recovery" | "sleep" | "load" | "steps";
-const TONE: Record<CalendarMetric, string> = { recovery: "var(--recovery)", sleep: "var(--sleep)", load: "var(--load)", steps: "var(--activity)" };
-const NAME: Record<CalendarMetric, string> = { recovery: "Recovery", sleep: "Sleep score", load: "Cardio load", steps: "Steps" };
+export type CalendarMetric = "recovery" | "sleep" | "load" | "steps" | "weight";
+const TONE: Record<CalendarMetric, string> = { recovery: "var(--recovery)", sleep: "var(--sleep)", load: "var(--load)", steps: "var(--activity)", weight: "var(--body)" };
+const NAME: Record<CalendarMetric, string> = { recovery: "Recovery", sleep: "Sleep score", load: "Cardio load", steps: "Steps", weight: "Weight" };
 const READY = { ready: "Ready to train", caution: "Train with care", recover: "Prioritise recovery" } as const;
 const PLAN_STATUS: Record<string, string> = {
   done: "Planned session done", different: "Trained (different category)", missed: "Planned session not recorded", rest: "Rest day kept",
@@ -22,9 +22,10 @@ const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const longFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 
 function valueOf(d: CalendarDay, m: CalendarMetric): number | null {
-  return m === "recovery" ? d.recovery : m === "sleep" ? d.sleepScore : m === "load" ? d.strain : d.steps;
+  return m === "recovery" ? d.recovery : m === "sleep" ? d.sleepScore : m === "load" ? d.strain : m === "steps" ? d.steps : d.weightKg;
 }
 function shortValue(v: number, m: CalendarMetric) {
+  if (m === "weight") return v.toFixed(1);
   return m === "steps" ? (v >= 1000 ? `${(v / 1000).toFixed(v >= 10_000 ? 0 : 1)}k` : String(Math.round(v))) : String(Math.round(v));
 }
 
@@ -38,7 +39,8 @@ export function HealthCalendar({ grid, days, metric, today, stepsGoal }: { grid:
   const [sel, setSel] = useState<string | null>(initial);
   const vals = days.map((d) => valueOf(d, metric)).filter((v): v is number => v !== null);
   // Scores are shaded across this month's own spread (otherwise 90 and 99 look identical); totals start at zero.
-  const score = metric === "recovery" || metric === "sleep";
+  // Weight is shaded across the month's own range too: lighter = lower, never good or bad.
+  const score = metric === "recovery" || metric === "sleep" || metric === "weight";
   const lo = score && vals.length ? Math.min(...vals) : 0;
   const hi = score ? (vals.length ? Math.max(...vals) : 100) : Math.max(metric === "steps" ? stepsGoal ?? 0 : 0, ...vals, 1);
   const selected = sel ? byDate.get(sel) ?? null : null;
@@ -79,8 +81,8 @@ export function HealthCalendar({ grid, days, metric, today, stepsGoal }: { grid:
         ))}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1 text-[11px] font-medium text-ink-3">
-        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-[4px]" style={{ background: `color-mix(in oklab, ${TONE[metric]} 70%, transparent)` }} />{score ? `Higher (${Math.round(hi)})` : "Higher"}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-[4px]" style={{ background: `color-mix(in oklab, ${TONE[metric]} 18%, transparent)` }} />{score ? `Lower (${Math.round(lo)})` : "Lower"}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-[4px]" style={{ background: `color-mix(in oklab, ${TONE[metric]} 70%, transparent)` }} />{score ? `Higher (${metric === "weight" ? hi.toFixed(1) : Math.round(hi)})` : "Higher"}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-[4px]" style={{ background: `color-mix(in oklab, ${TONE[metric]} 18%, transparent)` }} />{score ? `Lower (${metric === "weight" ? lo.toFixed(1) : Math.round(lo)})` : "Lower"}</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-[4px] border border-dashed border-[var(--ink-4)]" />No data</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-2.5 rounded-full bg-[var(--load)]" />Workout</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-ink-2" />Journal</span>
@@ -101,6 +103,7 @@ function DayPanel({ d }: { d: CalendarDay }) {
     { k: d.today ? "Cardio load so far" : "Cardio load", v: d.strain !== null ? `${Math.round(d.strain)} TRIMP` : "—", muted: d.strain === null },
     { k: d.today ? "Steps so far" : "Steps", v: fmtNumber(d.steps), muted: d.steps === null },
     { k: "Active minutes", v: d.activeMin !== null ? `${fmtNumber(d.activeMin)} min` : "—", muted: d.activeMin === null },
+    { k: "Weight", v: d.weightKg !== null ? `${d.weightKg.toFixed(1)} kg` : "—", muted: d.weightKg === null },
     { k: "Goals met", v: d.goals.evaluated ? `${d.goals.met} of ${d.goals.evaluated}` : "—", muted: !d.goals.evaluated },
     { k: "Journal", v: d.journal.habits ? `${d.journal.logged} of ${d.journal.habits} logged` : "—", muted: !d.journal.logged },
   ];

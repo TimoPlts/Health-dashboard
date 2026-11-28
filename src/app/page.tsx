@@ -17,6 +17,7 @@ import { TodayCustomizer } from "@/ui/TodayCustomizer";
 import { GOAL_TONE, STATUS_TEXT, formatGoalValue, formatTarget } from "@/ui/goal-format";
 import { db } from "@/server/db/client";
 import type { TodayCardId } from "@/lib/today-layout";
+import { WeightQuickLog } from "@/ui/WeightQuickLog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Today · Baseline" };
@@ -36,6 +37,12 @@ export default async function Today({ searchParams }: { searchParams: Promise<Re
   const v = todayView(parseDate(sp.date, ctx().today));
   const cards: Record<TodayCardId, ReactNode> = {
     hero: <Hero v={v} />,
+    weight: (
+      <section aria-label="Weight">
+        <SectionHeader href="/weight">Weight</SectionHeader>
+        <Glass className="rise p-4"><WeightQuickLog q={v.weight} compact /></Glass>
+      </section>
+    ),
     goals: <GoalsCard v={v} />,
     lastNight: <LastNight v={v} />,
     favorites: v.favorites.length ? (

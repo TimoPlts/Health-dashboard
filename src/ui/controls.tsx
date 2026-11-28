@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./icons";
 import { cx } from "./kit";
 
@@ -59,6 +60,8 @@ export function Segmented({ param, options, value }: { param: string; options: {
  */
 export function Sheet({ trigger, title, children, triggerClassName, dragToDismiss = true, triggerLabel }: { trigger: ReactNode; title: string; children: ReactNode | ((close: () => void) => ReactNode); triggerClassName?: string; dragToDismiss?: boolean; triggerLabel?: string }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const reduce = useReducedMotion();
   useEffect(() => {
     if (!open) return;
@@ -70,7 +73,9 @@ export function Sheet({ trigger, title, children, triggerClassName, dragToDismis
   return (
     <>
       <button type="button" className={cx("pressable", triggerClassName)} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={triggerLabel}>{trigger}</button>
-      <AnimatePresence>
+      {/* Portalled to <body>: a sheet opened from inside a glass card would otherwise be positioned and clipped by
+          that card (backdrop-filter makes it the containing block for fixed elements). */}
+      {mounted && createPortal(<AnimatePresence>
         {open && (
           <div className="fixed inset-0 z-[70] flex items-end justify-center">
             <motion.div className="absolute inset-0 bg-[var(--scrim)]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)} />
@@ -91,7 +96,7 @@ export function Sheet({ trigger, title, children, triggerClassName, dragToDismis
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </>
   );
 }

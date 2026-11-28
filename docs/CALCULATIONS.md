@@ -248,20 +248,32 @@ Independent flags, each shown with its reason. They are never combined into a di
 - **Cards:** recovery/sleep/load, goals, last night, favourite metrics (up to 8), vitals, activity, journal, workouts. Each can be reordered or hidden.
 - **Saved layouts:** unknown ids are dropped. Cards added in later versions are appended at the end, so your order is never shuffled. Reset deletes the saved layout.
 
-### WEIGHT · `weight-trend@1` (`lib/metrics/weight.ts`, `server/weight.ts`, `analytics/body.ts`)
+### WEIGHT · `weight-trend@2`, `weight-stats@1` (`lib/metrics/weight.ts`, `lib/metrics/weight-tracker.ts`, `server/weight.ts`, `analytics/weight.ts`)
 - **Sources:**
-  - Google weight records (synced with the other streams).
-  - Manual entries, stored as observations with Baseline's own source (`provider: baseline`, `MANUAL`). Never sent to Google, never touched by sync.
-  - A manual entry within **30 min and 0.1 kg** of any existing entry is refused as a duplicate.
-- **Daily weight** = mean of that day's entries.
-- **Trend:** exponential smoothing that moves 10 % toward each new weight per day (Walker, *The Hacker's Diet*), time-aware: trend_i = trend_{i−1} + (1 − 0.9^Δdays)(w_i − trend_{i−1}). Held between weigh-ins; never interpolated.
-- **Change:** trend now − trend 7 or 30 days earlier.
-  - Weekly needs ≥ 2 entries in 14 days and ≥ 7 days of history.
-  - Monthly needs ≥ 4 entries in 45 days and ≥ 30 days of history.
-- **Goal:** remaining = target − trend.
-  - A projection (weeks at the 30-day trend rate) is shown only when the trend moves toward the goal and history is ≥ 21 days.
-  - It is labelled a projection, not a prediction.
-- **Limitation:** weighing at different times of day adds noise. A morning routine gives the steadiest trend.
+  - Google weight records (synced with the other streams; read-only in Baseline).
+  - Manual entries, stored as observations with Baseline's own source (`provider: baseline`, `MANUAL`), with an optional note (≤ 200 characters) in `attrs`. Never sent to Google, never touched by sync. Editable and deletable; Google entries are not (they would return with the next sync).
+- **Duplicates:**
+  - An extra entry within **30 min and 0.1 kg** of any existing entry is refused.
+  - The quick **morning log** keeps one designated weigh-in per day (`weight_day_choice`): logging the same day again corrects that manual entry; a value matching a scale reading already synced from Google (30 min / 0.1 kg) designates that reading instead of adding a copy. Other weigh-ins of the day are never deleted. Earlier days are stamped 07:00 local.
+- **Daily weight (changed in @2)** = ONE weigh-in per day:
+  1. the designated morning weigh-in (if it still exists);
+  2. else the first weigh-in between **03:00 and 12:00** local time;
+  3. else the first weigh-in of the day.
+  - **Why:** @1 averaged every weigh-in of a day. Weight rises by about 1–2 kg over a day with food and fluid, so an occasional evening weigh-in pulled single days up and added noise that the trend then carried for weeks. A consistent morning measurement is the standard recommendation for self-weighing. **Regression:** with one weigh-in per day @2 equals @1 exactly (unit test).
+  - Missing days are missing: never zero, never filled.
+- **Trend (estimate):** unchanged smoothing — moves 10 % toward each new daily weight per day (Walker, *The Hacker's Diet*), time-aware: trend_i = trend_{i−1} + (1 − 0.9^Δdays)(w_i − trend_{i−1}); seeded with the first weigh-in; held between weigh-ins, never interpolated. Computed over the whole history so its value does not depend on the range being viewed. Chart: the trend line is drawn between weigh-in days and broken across gaps of more than 7 days.
+- **7-day average** = mean of the daily weights in the last 7 days (today included); needs ≥ 3 weigh-ins.
+- **Week-over-week change** = 7-day average vs the 7 days before it (equal, adjacent periods), each with ≥ 3 weigh-ins; kg and % of the previous week's average. Otherwise "not comparable yet".
+- **30-day change** = trend now − trend 30 days earlier (≥ 4 weigh-ins in 45 days and ≥ 30 days of history), as in @1.
+- **Lowest / highest** = extremes of the daily weights in the selected range (7 days … all time).
+- **Starting weight** = first daily weight ever; **total change** = trend now − starting weight.
+- **Consistency** = days with a weigh-in in the last 30; streak = consecutive days, not broken by today until the day is over.
+- **Goal:** remaining = goal − trend; progress = (trend − start) ÷ (goal − start), start = the phase's starting weight (or the first weigh-in when the goal is the global one). A projection (weeks at the 30-day trend rate, or at the phase's observed rate) appears only when that rate moves toward the goal, and is labelled a projection, not a prediction.
+- **Phases** (`weight_phases`): cutting / maintaining / bulking with a name, start date, starting weight, optional end date, goal and target rate. No overlaps; starting a new phase ends an open earlier one the day before. Ended phases stay in history.
+  - **Observed rate** = least-squares slope of the daily weights inside the phase × 7 (kg/week); needs ≥ 5 weigh-ins spanning ≥ 14 days. Robust to irregular weigh-ins; no gap filling.
+  - The target rate is the owner's and is shown only for comparison. Baseline prescribes no rate, deficit or calorie target.
+- **Interpretation:** measured weight, trend estimate and projections are labelled separately. A day-to-day difference is water, food and salt, not fat gained or lost; Baseline never labels it as such.
+- **Limitation:** scale accuracy, clothing and timing still add noise; designating the true morning weigh-in for days with several readings gives the steadiest trend.
 
 ### ENERGY-BALANCE · `energy-balance@1` (`lib/metrics/associations.ts → energyBalance`)
 - Mean of (intake − expenditure) over the days in the last 14 complete days that have **both**. It needs ≥ 7 such days.

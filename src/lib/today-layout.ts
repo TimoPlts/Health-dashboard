@@ -4,6 +4,7 @@
  */
 export const TODAY_CARDS = [
   { id: "hero", label: "Recovery, sleep & load", hint: "Score rings and readiness" },
+  { id: "weight", label: "Weight", hint: "Quick morning weigh-in" },
   { id: "goals", label: "Goals", hint: "Today's and this week's progress" },
   { id: "lastNight", label: "Last night", hint: "Time asleep and stages" },
   { id: "favorites", label: "Favourite metrics", hint: "The measurements you pick" },

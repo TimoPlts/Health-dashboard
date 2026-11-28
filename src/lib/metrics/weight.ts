@@ -1,14 +1,14 @@
 /**
- * Body-weight trend (weight-trend@1). Pure; documented in docs/CALCULATIONS.md § WEIGHT.
+ * Body-weight trend (weight-trend@2). Pure; documented in docs/CALCULATIONS.md § WEIGHT.
  *
- * Daily weight = mean of that day's entries. The trend is an exponentially smoothed average that "moves 10 % of the
+ * Daily weight = ONE weigh-in per day (weight-tracker.ts → selectDailyWeights; @1 used the mean of all entries). The trend is an exponentially smoothed average that "moves 10 % of the
  * way" toward each new weight per day (Walker, The Hacker's Diet, 1991), made time-aware for irregular weighing:
  *   trend_i = trend_{i−1} + (1 − 0.9^Δdays) · (weight_i − trend_{i−1}),  trend_0 = first weight.
  * Day-to-day water and food swings (often ±1 kg) are damped; between weigh-ins the trend is held, never invented.
  * Weekly / monthly change = trend now − trend 7 / 30 days earlier, reported only with enough entries:
  *   week: ≥ 2 entries in the last 14 days and history ≥ 7 days;  month: ≥ 4 entries in the last 45 days and history ≥ 30 days.
  */
-export const WEIGHT_TREND_VERSION = "weight-trend@1";
+export const WEIGHT_TREND_VERSION = "weight-trend@2";
 const DAY = 86_400_000;
 const dms = (d: string) => Date.parse(`${d}T00:00:00Z`);
 

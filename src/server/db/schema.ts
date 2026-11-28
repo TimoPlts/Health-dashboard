@@ -320,3 +320,34 @@ export const habitEntries = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.habitId, t.date] }), index("habit_entries_date").on(t.date)],
 );
+
+/**
+ * The one weigh-in that represents a day (your "morning weigh-in"), chosen by you or set when you log a morning
+ * weight. Points at an observation (start_ms + source_id); provider rows are never modified or deleted. A missing or
+ * stale choice falls back to the first morning weigh-in (weight-trend@2).
+ */
+export const weightDayChoice = sqliteTable("weight_day_choice", {
+  date: text("date").primaryKey(),
+  tMs: integer("t_ms").notNull(),
+  sourceId: integer("source_id").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** Owner-defined weight phases (cutting / maintaining / bulking). Kept after they end, for history. */
+export const weightPhases = sqliteTable(
+  "weight_phases",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["cut", "maintain", "bulk"] }).notNull(),
+    name: text("name").notNull(),
+    startDate: text("start_date").notNull(),
+    startKg: real("start_kg").notNull(),
+    endDate: text("end_date"),
+    goalKg: real("goal_kg"),
+    /** Optional target rate, kg per week (negative = losing). Shown for comparison only; never prescribed. */
+    targetRateKgWeek: real("target_rate_kg_week"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("weight_phases_start").on(t.startDate)],
+);

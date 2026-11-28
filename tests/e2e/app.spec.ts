@@ -182,18 +182,10 @@ test("weight, energy, reports and associations", async ({ page }) => {
   await login(page);
   page.on("dialog", (d) => void d.accept());
   await page.goto("/body");
-  await expect(page.getByRole("heading", { name: "Weight & energy" })).toBeVisible();
-  await expect(page.getByText("Trend weight")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Body & energy" })).toBeVisible();
+  await expect(page.getByText("Weight trend")).toBeVisible();
   await page.waitForTimeout(400);
   await shot(page, "body"); await axe(page); await noOverflow(page);
-  await page.getByRole("button", { name: "Log weight" }).click();
-  const w = page.getByRole("dialog", { name: "Log weight" });
-  await w.getByLabel("Weight in kilograms").fill("71.3");
-  await w.getByLabel("Time").fill("21:47");
-  await w.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByText("71.3 kg").first()).toBeVisible();
-  await page.getByRole("button", { name: /Delete manual entry .*21:47/ }).first().click();
-  await expect(page.getByText("71.3 kg")).toHaveCount(0);
 
   await page.goto("/trends");
   await page.getByRole("link", { name: "Weekly report" }).click();
@@ -285,4 +277,70 @@ test("v0.7: health monitor, calendar, timeline and training planner", async ({ p
 
 test("training plan API refuses unauthenticated requests", async ({ request }) => {
   expect((await request.post("/api/training/plan", { data: { clear: true } })).status()).toBe(401);
+});
+
+test("v0.7.1: weight logging, dashboard, phases, history and calendar", async ({ page }) => {
+  await login(page);
+  const log = page.getByRole("region", { name: "Weight" });
+  await expect(log.getByLabel("Weight in kilograms")).not.toHaveValue("");
+  // Quick log from Today: step up 0.1 kg and save (or correct today's entry if an earlier project logged it).
+  await expect(async () => {
+    const before = Number(await log.getByLabel("Weight in kilograms").inputValue());
+    await log.getByRole("button", { name: "Increase by 0.1 kg" }).click();
+    await expect(log.getByLabel("Weight in kilograms")).toHaveValue((before + 0.1).toFixed(1), { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await log.getByRole("button", { name: /^(Save|Update)$/ }).click();
+  await expect(log.getByRole("button", { name: /Saved|Updated/ })).toBeVisible();
+  await expect(log.getByText(/^Logged today · /)).toBeVisible();
+  await shot(page, "today-weight");
+
+  await log.getByRole("link", { name: "Weight dashboard ›" }).click();
+  await expect(page.getByRole("heading", { name: "Weight", exact: true })).toBeVisible();
+  await expect(page.getByText("7-day average")).toBeVisible();
+  await expect(page.getByRole("img", { name: /^Measured weight \(dots\) and smoothed trend/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Current phase Lean-out" })).toBeVisible();
+  await expect(page.getByText("Maintenance", { exact: false }).first()).toBeVisible();
+  await page.getByRole("tab", { name: "1Y" }).click();
+  await expect(page).toHaveURL(/range=1y/);
+  const chart = page.getByRole("group", { name: /^Weight chart/ });
+  await chart.focus();
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("region", { name: "Selected weigh-in" })).toContainText(/kg/);
+  await page.getByRole("button", { name: "How weight is calculated" }).click();
+  await expect(page.getByRole("dialog", { name: "How weight is calculated" })).toContainText("never zero");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  await shot(page, "weight"); await axe(page); await noOverflow(page);
+
+  // Edit the current phase (target rate), then back.
+  await page.getByRole("button", { name: "Edit phase" }).click();
+  const ph = page.getByRole("dialog", { name: "Edit phase" });
+  await ph.getByLabel("Target kg / week").fill("-0.3");
+  await ph.getByRole("button", { name: "Save phase" }).click();
+  await expect(page.getByText("−0.30 kg/wk")).toBeVisible();
+
+  // History: annotate the manual entry, make a Google reading the day's weight.
+  await page.getByRole("link", { name: "History ›" }).click();
+  await expect(page.getByRole("heading", { name: "History" })).toBeVisible();
+  await page.getByRole("button", { name: /, manual.*Options$/ }).first().click();
+  const ed = page.getByRole("dialog");
+  await ed.getByLabel("Note").fill("E2E note (fictional)");
+  await ed.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("“E2E note (fictional)”").first()).toBeVisible();
+  await page.getByRole("button", { name: /Smart scale \(demo\)\. Options$/ }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "Use as this day's morning weigh-in" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await shot(page, "weight-history"); await axe(page); await noOverflow(page);
+
+  await page.goto("/calendar?show=weight");
+  await expect(page.getByRole("grid", { name: "Weight calendar" })).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Summary of / }).getByText("Weight", { exact: true })).toBeVisible();
+  await axe(page); await noOverflow(page);
+});
+
+test("weight API refuses unauthenticated requests", async ({ request }) => {
+  expect((await request.post("/api/weight", { data: { mode: "morning", date: "2026-01-01", kg: 80 } })).status()).toBe(401);
+  expect((await request.post("/api/weight/phases", { data: { action: "delete", id: crypto.randomUUID() } })).status()).toBe(401);
+  expect((await request.post("/api/weight/morning", { data: { tMs: 1, sourceId: 1 } })).status()).toBe(401);
 });

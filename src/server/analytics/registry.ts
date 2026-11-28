@@ -15,6 +15,8 @@ export type SeriesSpec =
   /** Samples recorded inside the main sleep session, attributed to the wake date (night-safe, unlike civil-day samples). */
   | { kind: "nightSample"; dataType: string; attr?: string; agg: "avg" | "min" | "max" }
   | { kind: "derived"; metric: string; scale?: number }
+  /** One weigh-in per day (designated, else first morning weigh-in): weight-trend@2. */
+  | { kind: "weightDaily" }
   | { kind: "night"; field: "asleep" | "inBed" | "efficiency" | "deep" | "rem" | "light" | "awake" | "latency" | "bedtime" | "wake" }
   | { kind: "score"; field: "recovery" | "sleepScore" | "sleepDebt" | "acwr" | "strain" | "balance" };
 
@@ -155,7 +157,7 @@ export const METRICS: MetricDef[] = [
     series: { kind: "daily" as const, metric: `kcal_hr_zone_${z}` }, agg: "sum" as const, estimate: true, source: `${G} · calories-in-heart-rate-zone`, explanation: `Energy burned while in Google's ${z} heart-rate zone.` })),
 
   // Body
-  { id: "weight", label: "Weight", group: "body", tone: "body", unit: "kg", decimals: 1, series: { kind: "sample", dataType: "weight" }, agg: "mean", source: `${G} · weight`, explanation: "Body weight as logged in Fitbit / Google Health." },
+  { id: "weight", label: "Weight", group: "body", tone: "body", unit: "kg", decimals: 1, series: { kind: "weightDaily" }, agg: "mean", source: `${G} · weight + manual entries`, explanation: "Your weigh-in for each day: the one you marked as the morning weigh-in, otherwise the first between 03:00 and 12:00. Measured weight, not the smoothed trend.", method: "weight-trend@2 — one weigh-in per day; other weigh-ins stay stored. See the Weight dashboard for the trend." },
   { id: "body_fat", label: "Body fat", group: "body", tone: "body", unit: "%", decimals: 1, series: { kind: "sample", dataType: "body-fat" }, agg: "mean", source: `${G} · body-fat`, explanation: "Body fat percentage from a connected scale or manual entry." },
   { id: "height", label: "Height", group: "body", tone: "body", unit: "m", decimals: 2, series: { kind: "sample", dataType: "height" }, agg: "mean", source: `${G} · height`, explanation: "Height from your profile entries." },
   { id: "blood_glucose", label: "Blood glucose", group: "body", tone: "body", unit: "mg/dL", decimals: 0, series: { kind: "sample", dataType: "blood-glucose" }, agg: "mean", source: `${G} · blood-glucose`, explanation: "Glucose readings from a connected meter or CGM." },

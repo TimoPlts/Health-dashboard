@@ -1,6 +1,6 @@
 {
   "name": "baseline",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "description": "Baseline — private, single-user health & training app for Google Health (Fitbit Air) data.",

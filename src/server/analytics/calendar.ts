@@ -10,6 +10,7 @@ import { metricSeries } from "./values";
 import { computeScores, nightValue } from "./scores";
 import { nightSeries } from "./series";
 import { countedWorkouts, toDone } from "./planner";
+import { weightData } from "../weight";
 
 export interface CalendarDay {
   date: string; future: boolean; today: boolean;
@@ -17,6 +18,8 @@ export interface CalendarDay {
   readiness: "ready" | "caution" | "recover" | null;
   sleepScore: number | null; asleepMin: number | null;
   strain: number | null; steps: number | null; activeMin: number | null;
+  /** The day's weigh-in (weight-trend@2) and how many weigh-ins the day has; null = not weighed. */
+  weightKg: number | null; weighIns: number;
   /** Edwards zone minutes (Z1–Z5) of all-day heart rate; null = no heart rate that day. */
   hrMin: number | null;
   workouts: { id: string; title: string; category: WorkoutCategory | null; cardio: boolean; durationMin: number }[];
@@ -45,6 +48,7 @@ export function calendarView(db: DB, month: string, today: string, fb: number, t
   const habits = listHabits(db);
   const entries = days.length ? entriesBetween(db, p.from, to) : new Map<string, Map<string, number>>();
   const g = settings.goals;
+  const weights = new Map(weightData(db, fb).daily.map((d) => [d.date, d]));
 
   const out: CalendarDay[] = p.days.map((date) => {
     const future = date > today;
@@ -68,6 +72,7 @@ export function calendarView(db: DB, month: string, today: string, fb: number, t
       readiness: sc?.readiness.status === "ok" ? sc.readiness.level : null,
       sleepScore: sc?.sleepScore?.score ?? null, asleepMin: n?.minutesAsleep ?? null,
       strain: sc?.strain ?? null, steps: steps.get(date) ?? null, activeMin: active.get(date) ?? null,
+      weightKg: future ? null : weights.get(date)?.weightKg ?? null, weighIns: future ? 0 : weights.get(date)?.count ?? 0,
       hrMin: worn.has(date) ? worn.get(date)! * 60 : null,
       workouts: ws.map((w) => ({ id: w.id, title: w.title, category: w.label?.category ?? null, cardio: isCardio(w.type, w.label?.category), durationMin: w.durationMin })),
       restDay: !future && date < today && ws.length === 0 && worn.has(date),

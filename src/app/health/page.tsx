@@ -18,11 +18,12 @@ export default async function HealthPage() {
   return (
     <Page accent="heart">
       <LargeTitle title="Health" eyebrow={`${rows.filter((r) => r.latest).length} of ${rows.length} measurements with data`} />
-      <nav aria-label="Health views" className="grid grid-cols-3 gap-3">
+      <nav aria-label="Health views" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {([
           { href: "/monitor", icon: "pulse", label: "Monitor", sub: "Vitals vs your normal", tone: "vitals" },
           { href: "/calendar", icon: "calendar", label: "Calendar", sub: "Month at a glance", tone: "sleep" },
           { href: "/timeline", icon: "clock", label: "Timeline", sub: "Your day, minute by minute", tone: "heart" },
+          { href: "/weight", icon: "body", label: "Weight", sub: "Log, trend and phases", tone: "body" },
         ] as const).map((x, i) => (
           <Link key={x.href} href={x.href} transitionTypes={["nav-forward"]} className={`glass pressable rise rise-${i + 1} flex flex-col gap-2 p-3.5`}>
             <span className="grid size-9 place-items-center rounded-[11px]" style={{ color: toneVar(x.tone), background: `color-mix(in oklab, ${toneVar(x.tone)} 16%, transparent)` }}><Icon name={x.icon} size={19} strokeWidth={2.1} /></span>
@@ -36,7 +37,7 @@ export default async function HealthPage() {
         if (!items.length) return null;
         return (
           <section key={g}>
-            <SectionHeader href={g === "body" ? "/body" : g === "load" ? "/cardio" : undefined}>{g === "body" ? "Body · weight & energy" : GROUP_LABEL[g]}</SectionHeader>
+            <SectionHeader href={g === "body" ? "/body" : g === "load" ? "/cardio" : undefined}>{g === "body" ? "Body & energy" : GROUP_LABEL[g]}</SectionHeader>
             <Glass className="list overflow-hidden">
               {items.map(({ def, latest }) => {
                 const fmt = def.clock ? "clock" : def.unit === "h" && def.group === "sleep" ? "hours" : "number";

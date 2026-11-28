@@ -4,7 +4,7 @@ A private, single-user health & training app that shows **Fitbit Air** data from
 
 > Current state, problems, decisions and next actions: [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md).
 
-Version **0.7.0** (health monitor, calendar, daily timeline, training planner; [CHANGELOG](docs/CHANGELOG.md), [release audit](docs/RELEASE_AUDIT.md)).
+Version **0.7.1** (body weight tracker; 0.7.0: health monitor, calendar, daily timeline, training planner; [CHANGELOG](docs/CHANGELOG.md), [release audit](docs/RELEASE_AUDIT.md)).
 
 ## Run it (Windows)
 Node 22 LTS or newer. No C++ build tools are needed (better-sqlite3 ships prebuilt binaries):

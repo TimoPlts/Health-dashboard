@@ -3,6 +3,7 @@ import { METRIC_BY_ID, type MetricDef } from "./registry";
 import { dailyAttrSeries, dailyMetricSeries, dateRange, nightSampleSeries, derivedSeries, intervalSumSeries, localToday, nightSeries, sampleDailySeries, shiftDate, type DaySeries } from "./series";
 import { computeScores, nightValue, type DayScores } from "./scores";
 import { personalRange } from "@/lib/metrics/personal-range";
+import { weightData } from "../weight";
 
 /**
  * Daily values for any registered metric over [from, to]. Missing days are absent (never 0).
@@ -19,6 +20,7 @@ export function metricSeries(db: DB, def: MetricDef, from: string, to: string, f
     case "sample": return sampleDailySeries(db, s.dataType, from, to, fbOffsetS, s.agg);
     case "dailyAttr": return dailyAttrSeries(db, s.metric, s.attr, from, to);
     case "nightSample": return nightSampleSeries(db, s.dataType, from, to, fbOffsetS, s.agg, s.attr);
+    case "weightDaily": return new Map(weightData(db, fbOffsetS).daily.filter((d) => d.date >= from && d.date <= to).map((d) => [d.date, d.weightKg]));
     case "derived": {
       const m = derivedSeries(db, s.metric, from, to);
       return s.scale ? new Map([...m].map(([d, v]) => [d, v * s.scale!])) : m;

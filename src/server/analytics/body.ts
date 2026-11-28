@@ -1,10 +1,9 @@
 import type { DB } from "../db/client";
 import { getSettings } from "../settings";
-import { listWeights } from "../weight";
-import { civilDate } from "@/lib/time";
 import { daysBetween } from "@/lib/metrics/periods";
 import { energyBalance } from "@/lib/metrics/associations";
-import { weightChange, weightGoalProgress, weightTrend } from "@/lib/metrics/weight";
+import { weightChange, weightGoalProgress } from "@/lib/metrics/weight";
+import { weightData } from "../weight";
 import { METRIC_BY_ID } from "./registry";
 import { metricSeries } from "./values";
 import { shiftDate } from "./series";
@@ -16,12 +15,10 @@ import { shiftDate } from "./series";
 export function bodyView(db: DB, today: string, fbOffsetS: number, tz: string) {
   const s = getSettings(db);
   const from = shiftDate(today, -364);
-  const entries = listWeights(db, Date.parse(`${from}T00:00:00Z`) - 86_400_000, Date.now() + 86_400_000)
-    .map((e) => ({ ...e, date: civilDate(e.tMs, e.offsetS, tz) })).filter((e) => e.date >= from && e.date <= today);
-  const byDay = new Map<string, number[]>();
-  for (const e of entries) byDay.set(e.date, [...(byDay.get(e.date) ?? []), e.kg]);
-  const daily = [...byDay].map(([date, v]) => ({ date, weightKg: v.reduce((a, b) => a + b, 0) / v.length }));
-  const trend = weightTrend(daily);
+  // One weigh-in per day and the trend over the whole history (weight-trend@2), shared with the Weight dashboard.
+  const all = weightData(db, fbOffsetS);
+  const entries = all.entries.filter((e) => e.date >= from && e.date <= today);
+  const trend = all.trend;
   const days90 = daysBetween(shiftDate(today, -89), today);
   const total = metricSeries(db, METRIC_BY_ID.get("total_kcal")!, days90[0]!, today, fbOffsetS);
   const active = metricSeries(db, METRIC_BY_ID.get("active_kcal")!, days90[0]!, today, fbOffsetS);

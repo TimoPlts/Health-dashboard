@@ -34,3 +34,11 @@ export function offsetMs(t: number, timeZone: string): number {
   const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
   return asUtc - Math.floor(t / 1000) * 1000;
 }
+
+/** UTC instant of a local wall-clock time in an IANA zone, and the offset (s) that applies then. */
+export function zonedInstant(date: string, hh: number, mm: number, timeZone: string): { tMs: number; offsetS: number } {
+  const [y, m, d] = date.split("-").map(Number);
+  const guess = Date.UTC(y!, m! - 1, d!, hh, mm);
+  const off = offsetMs(guess - offsetMs(guess, timeZone), timeZone);
+  return { tMs: guess - off, offsetS: Math.round(off / 1000) };
+}

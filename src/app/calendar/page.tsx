@@ -11,7 +11,7 @@ import { Icon } from "@/ui/icons";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Calendar · Baseline" };
 
-const METRICS = [{ value: "recovery", label: "Recovery" }, { value: "sleep", label: "Sleep" }, { value: "load", label: "Load" }, { value: "steps", label: "Steps" }];
+const METRICS = [{ value: "recovery", label: "Recovery" }, { value: "sleep", label: "Sleep" }, { value: "load", label: "Load" }, { value: "steps", label: "Steps" }, { value: "weight", label: "Weight" }];
 const monthFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", month: "long", year: "numeric" });
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -19,7 +19,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const c = ctx();
   const current = monthOf(c.today);
   const month = isMonth(sp.month) && sp.month <= current ? sp.month : current;
-  const metric: CalendarMetric = typeof sp.show === "string" && ["recovery", "sleep", "load", "steps"].includes(sp.show) ? (sp.show as CalendarMetric) : "recovery";
+  const metric: CalendarMetric = typeof sp.show === "string" && ["recovery", "sleep", "load", "steps", "weight"].includes(sp.show) ? (sp.show as CalendarMetric) : "recovery";
   const v = calendarView(c.db, month, c.today, c.fb, c.tz);
   const past = v.days.filter((d) => !d.future);
   const avg = (f: (d: (typeof past)[number]) => number | null) => { const x = past.map(f).filter((n): n is number => n !== null); return x.length ? { v: x.reduce((a, b) => a + b, 0) / x.length, n: x.length } : null; };

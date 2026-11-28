@@ -11,7 +11,7 @@ import { writeBatch } from "../src/server/store";
 import { civilDayBounds } from "../src/lib/time";
 import { ensureDefaultHabits, listHabits, setEntry } from "../src/server/journal";
 import { EMPTY_GOALS, getSettings, setSetting } from "../src/server/settings";
-import { addManualWeight } from "../src/server/weight";
+import { createPhase, logMorningWeight } from "../src/server/weight";
 import { computeDerived } from "../src/server/analytics/derive";
 import { dateRange } from "../src/server/analytics/series";
 
@@ -141,7 +141,7 @@ for (let o = -(DAYS - 1); o <= 0; o++) {
   if (o === -3) b.exercise.push({ source: { ...band, recordingMethod: "ACTIVELY_MEASURED" }, id: `demo-ex-short-${date}`, startMs: d0 + 15 * 3.6e6, endMs: d0 + 15 * 3.6e6 + 20_000, startOffsetS: OFF, exerciseType: "WALKING", displayName: "Walk", activeDurationS: 20, metrics: null });
 
   // Weight weekly, height once
-  if (o % 7 === 0) b.obs.push({ source: { ...band, recordingMethod: "MANUAL" }, dataType: "weight", startMs: d0 + 7.3 * 3.6e6, endMs: d0 + 7.3 * 3.6e6, variant: "", utcOffsetS: OFF, value: 78.4 - fitness + gauss() * 0.3, unit: "kg" });
+  // Weight is seeded separately below (smart scale + manual), so one source of truth for the demo.
   if (o === -(DAYS - 1)) b.obs.push({ source: { ...band, recordingMethod: "MANUAL" }, dataType: "height", startMs: d0, endMs: d0, variant: "", utcOffsetS: OFF, value: 1.8, unit: "m" });
   writeBatch(db, b, null);
 }
@@ -158,17 +158,24 @@ for (const [hi, h] of listHabits(db).entries()) {
   }
 }
 
-// Fictional weigh-ins: a smart scale via Google every ~2 days (slow downward trend with daily noise) + 2 manual entries.
+// Fictional weigh-ins: a smart scale via Google most mornings (a few missed days), flat for a month, then a slow cut;
+// one evening weigh-in (not the day's weight), a manual entry with a note yesterday, and today left unlogged on purpose.
+// Fictional phases: a finished maintenance phase and the current cut with a goal and a target rate.
 {
   const wb = emptyBatch();
   const scale: SourceDescriptor = { provider: "google", platform: "FITBIT", deviceName: "Smart scale (demo)" };
-  for (let o = -58; o <= -2; o += 2) {
+  for (let o = -58; o <= -2; o++) {
+    if (o % 9 === 0 || o === -17 || o === -16) continue; // missed mornings
     const [d0] = civilDayBounds(dayStr(o), TZ);
-    wb.obs.push({ source: scale, dataType: "weight", startMs: d0 + 7.2 * 3.6e6, endMs: d0 + 7.2 * 3.6e6, variant: "", utcOffsetS: OFF, value: Math.round((79.2 + o * 0.025 + gauss() * 0.45) * 10) / 10, unit: "kg" });
+    const base = o < -30 ? 79.6 : 79.6 - (o + 30) * 0.045; // cut from day −30 (≈ −0.3 kg/week)
+    wb.obs.push({ source: scale, dataType: "weight", startMs: d0 + 6.9 * 3.6e6, endMs: d0 + 6.9 * 3.6e6, variant: "", utcOffsetS: OFF, value: Math.round((base + gauss() * 0.35) * 10) / 10, unit: "kg" });
+    if (o === -3) wb.obs.push({ source: scale, dataType: "weight", startMs: d0 + 21.5 * 3.6e6, endMs: d0 + 21.5 * 3.6e6, variant: "", utcOffsetS: OFF, value: Math.round((base + 1.3) * 10) / 10, unit: "kg" });
   }
   writeBatch(db, wb, null);
-  for (const o of [-1, 0]) { const [d0] = civilDayBounds(dayStr(o), TZ); addManualWeight(db, { tMs: d0 + 7.5 * 3.6e6, offsetS: OFF, kg: 78.0 + o * 0.2 }); }
+  logMorningWeight(db, { date: dayStr(-1), kg: 78.5, note: "After a salty dinner (fictional)", today, nowMs: now, tz: TZ, fbOffsetS: OFF });
   setSetting(db, "goals", { ...getSettings(db).goals, weightKg: 76 });
+  createPhase(db, { kind: "maintain", name: "Maintenance", startDate: dayStr(-58), startKg: 79.6, endDate: dayStr(-31), goalKg: null, targetRateKgWeek: null });
+  createPhase(db, { kind: "cut", name: "Lean-out", startDate: dayStr(-30), startKg: 79.6, endDate: null, goalKg: 76.5, targetRateKgWeek: -0.4 });
 }
 
 // Fictional category labels for the strength sessions (by weekday, as an owner might) and a fictional training plan

@@ -93,3 +93,22 @@ v0.7.0 adds four views (health monitor, calendar, daily timeline, training plann
 | New route review | session + same-origin guard (`guardMutation`); Zod schema (7-day split, names ≤ 40 characters, fixed category enum, ISO date); stored value re-normalised by `normalisePlan`; no provider data touched |
 
 **Not verified:** v0.7.0 has not run on real data or on the production PC, because that PC is not reachable from the development PC. Deploy with the backup-first runbook ([DEPLOYMENT → Upgrading](DEPLOYMENT.md)).
+
+## 7. v0.7.1 release checks (2026-11-28)
+v0.7.1 expands body-weight tracking.
+- **Routes:** three mutating routes (`POST/PATCH/DELETE /api/weight`, `POST /api/weight/morning`, `POST /api/weight/phases`).
+- **Migration:** one additive migration (`0004_weight_tracking`: two new tables). No dependency or security control changed.
+- **User-entered data:** notes, the daily morning choice and phases. All of it is local only and covered by backup/restore, export and delete-all.
+
+| Check | Result |
+|---|---|
+| TypeScript, unit + integration | clean · **290 / 290** (22 new). Includes the upgrade from a 0.7.0 database (existing weigh-ins survive migration 0004) and backup/restore, export and delete-all of the new data |
+| E2E + axe (iPhone dark, iPhone light, desktop; fictional demo DB) | **33 / 33**: quick log from Today, dashboard ranges and chart inspection, phase edit, history edit and designation, weight calendar; no horizontal overflow |
+| Production build | passed |
+| Production smoke test (isolated home, throwaway secrets) | **69 / 69**. Weight pages require login and render with no data. The weight API refuses cross-origin (403), unauthenticated (401), out-of-range, future-dated and over-long-note requests (400). A morning log is corrected in place, unknown entries return 404, and phases are validated with overlaps refused |
+| Browser pass on the production build | 19 pages: no CSP violations or console errors |
+| Secret scan | gitleaks: full history 0; `src`, `scripts`, `tests`, `docs` 0 |
+| Dependency audit | production 0; dev unchanged (§4) |
+| New route review | every mutation uses `guardMutation` (session + same origin) and a Zod schema (kg 25–350, ISO dates, note ≤ 200, rate ±2 kg/week, phase kind enum, UUID ids). Google weigh-ins cannot be edited or deleted; only Baseline's own manual rows are changed |
+
+**Not verified:** not yet run on real data or on the production PC (not reachable from the development PC). Deploy with the backup-first runbook; the migration runs on start after the backup.

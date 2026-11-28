@@ -1,6 +1,6 @@
 # Baseline: project overview
 
-_Last updated: 2026-11-28 · **v0.7.0** (health monitor, calendar, timeline, training planner; see [CHANGELOG](CHANGELOG.md)) · v0.6.0 security audit: [RELEASE_AUDIT](RELEASE_AUDIT.md) · features are built on branches from `main`; native iOS feasibility on `ios-feasibility`_
+_Last updated: 2026-11-28 · **v0.7.1** (body weight tracker; 0.7.0: health monitor, calendar, timeline, training planner; see [CHANGELOG](CHANGELOG.md)) · v0.6.0 security audit: [RELEASE_AUDIT](RELEASE_AUDIT.md) · features are built on branches from `main`; native iOS feasibility on `ios-feasibility`_
 
 ## What it is
 Baseline is a private, single-user health and training app for one Fitbit Air wearer.
@@ -32,10 +32,11 @@ Verification levels: **verified on real data** › **tested** (unit/integration/
 | Weight & energy, weekly/monthly reports, habit associations (with safeguards) | tested (unit, integration, E2E on demo data) | real data: read models run without errors; associations need weeks of journal logging; energy balance needs an intake source |
 | Goals, habit journal, customisable Today | tested (unit, integration, E2E on demo data) | your goals and habits start empty or as suggestions; nothing assumed |
 | Workout labels, sleep detail (WASO, bedtime, overnight graphs, naps), Cardio page | tested (unit, integration, E2E on demo data) | real data: structure only; recommended bedtime needs 5 nights or a wake-up target |
+| Weight tracker: quick morning log, dashboard, phases, history (0.7.1) | tested (unit, integration incl. backup/export/delete, E2E + axe on demo data) | **not yet deployed**; your existing Google and manual weigh-ins are kept; the day's weight now uses the morning weigh-in (weight-trend@2) |
 | Health monitor (personal ranges), calendar, 24-hour timeline, training planner (0.7.0) | tested (unit, E2E + axe on demo data, both themes, phone and desktop) | **not yet run on real data or deployed** (production PC not reachable from the development PC); ranges calibrate with the same 14-day rule as recovery |
 | Displayed values vs the Google Health app | unverified by the owner | values equal the API exactly |
 
-Tests at v0.7.0: 268 unit/integration pass, typecheck clean, 27 E2E (incl. axe) pass, production build OK. CI runs all of them on every push and PR.
+Tests at v0.7.1: 290 unit/integration pass, typecheck clean, 33 E2E (incl. axe) pass, production build OK. CI runs all of them on every push and PR.
 
 ## Problems and constraints
 - **Short history:** baseline-dependent scores show "Calibrating n/14" until enough nights exist. Calibration periods are not shortened.
@@ -60,7 +61,7 @@ Tests at v0.7.0: 268 unit/integration pass, typecheck clean, 27 E2E (incl. axe) 
 - Design is reviewed only on fictional demo data.
 
 ## Next three actions
-1. **Owner, production PC, about 5 min:** deploy v0.7.0 with a verified backup first ([DEPLOYMENT → Upgrading](DEPLOYMENT.md)). Coming from 0.5.x, sign in once on the PC and the iPhone (0.6.0 session format). Then open Health → Monitor / Calendar / Timeline and Training → Training plan on real data. Not done from the development PC: the production PC is not reachable from it.
+1. **Owner, production PC, about 5 min:** deploy v0.7.1 with a verified backup first (it adds one migration) ([DEPLOYMENT → Upgrading](DEPLOYMENT.md)). Coming from 0.5.x, sign in once on the PC and the iPhone (0.6.0 session format). Then log a morning weight from Today and open Health → Weight, Monitor, Calendar and Timeline, and Training → Training plan on real data. Not done from the development PC: the production PC is not reachable from it.
 2. **Owner, about 5 min:** Tailscale admin console → DNS → enable **HTTPS Certificates** (consider a neutral machine name first: it appears in public certificate logs). Then `npm run configure -- tailscale` and [DEPLOYMENT → On the iPhone](DEPLOYMENT.md). Optional: `npm run service -- install` from an administrator terminal for start at boot.
 3. **From 2026-12-08:** review recovery and readiness against how you feel; compare three days with the Google Health app (`npm run verify:google -- 3 --show-values`). Next features: R7 results once enough journal days exist; R10–R12 are conditional ([ROADMAP](ROADMAP.md)).
 

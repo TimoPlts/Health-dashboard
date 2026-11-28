@@ -12,6 +12,8 @@ import { goalsView } from "./analytics/goals";
 import { ensureDefaultHabits, entriesBetween, listHabits } from "./journal";
 import { resolveLayout } from "@/lib/today-layout";
 import { getSettings } from "./settings";
+import { weightData } from "./weight";
+import { quickLog } from "./analytics/weight";
 import { todayDate } from "./queries";
 
 /** Request-level context: database, home time zone, fallback UTC offset and today's civil date. */
@@ -86,6 +88,7 @@ export function todayView(date: string) {
       return { date, habits: habits.length, logged: habits.filter((h) => e.get(h.id)?.has(date)).length };
     })(),
     workouts,
+    weight: quickLog(weightData(db, fb), today, tz),
     sleepStages: day.night ? db.all(sql`select start_ms as startMs, end_ms as endMs, stage from sleep_stages where session_id = ${day.night.id} and is_short_awakening = 0 order by start_ms`) as { startMs: number; endMs: number; stage: string }[] : [],
   };
 }

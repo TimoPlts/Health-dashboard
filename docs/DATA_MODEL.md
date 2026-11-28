@@ -29,6 +29,10 @@ Schema source of truth: `src/server/db/schema.ts`. Migrations: `src/server/db/mi
 | `exercise_exclusions` | session_id | owner's exclusions of provider sessions (provider rows untouched) |
 | `workout_annotations` | session_id | owner's workout name, category, effort 1–10 (written for every session of a grouped workout) |
 | `habits` / `habit_entries` | id / (habit_id, date) | owner-defined journal habits; one value per habit per day, no row = not logged |
+| `weight_day_choice` | date | the designated morning weigh-in of a day (points at an observation by start_ms + source_id; Google rows are never modified). Missing/stale → first morning weigh-in (weight-trend@2) |
+| `weight_phases` | id | cutting / maintaining / bulking phases: name, start date, starting weight, optional end date, goal and target rate; kept after they end |
+
+Manual weigh-ins are rows in `observations` (`data_type = weight`, source `baseline/MANUAL`); an optional note is stored in that row's `attrs.note`. Added in migration `0004_weight_tracking` (new tables only; no existing table changed).
 
 ## Units
 HR bpm · HRV ms · SpO₂ % · temperature °C · distance m (Google mm → m) · weight kg (Google g → kg) · height m · energy kcal · durations s (minutes where named `min`) · respiratory rate breaths/min.
