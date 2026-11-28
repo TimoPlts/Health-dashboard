@@ -15,6 +15,8 @@ interface Props {
   decimals?: number;
   /** Personal baseline: mean ± sd band. */
   baseline?: { mean: number; sd: number } | null;
+  /** Personal normal range with its typical value (may be asymmetric, e.g. HRV on a log scale). Wins over `baseline`. */
+  band?: { low: number; high: number; typical: number } | null;
   /** Reference line (e.g. sleep need). */
   target?: { value: number; label: string } | null;
   /** Format a value for the tooltip / axis (e.g. clock times). */
@@ -32,16 +34,17 @@ const shortFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numer
  * Daily trend chart with touch/mouse scrubbing. Lines connect consecutive days only — a missing day breaks the
  * line (never drawn as zero). Bars are omitted for missing days. Baseline shown as a translucent band.
  */
-export function TrendChart({ points, color, kind = "line", height = 200, unit, decimals = 0, baseline, target, format = "number", clockBase = 0, zero, label }: Props) {
+export function TrendChart({ points, color, kind = "line", height = 200, unit, decimals = 0, baseline: baselineProp, band: bandProp, target, format = "number", clockBase = 0, zero, label }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState<number | null>(null);
   const gid = useId().replace(/:/g, "");
   const W = 1000, H = height, padT = 16, padB = 4;
   const n = points.length;
+  const baseline = bandProp ?? (baselineProp ? { low: baselineProp.mean - baselineProp.sd, high: baselineProp.mean + baselineProp.sd, typical: baselineProp.mean } : null);
 
   const { lo, hi, ticks } = useMemo(() => {
     const vals = points.map((p) => p.value).filter((v): v is number => v !== null);
-    if (baseline) vals.push(baseline.mean - baseline.sd, baseline.mean + baseline.sd);
+    if (baseline) vals.push(baseline.low, baseline.high);
     if (target) vals.push(target.value);
     if (!vals.length) return { lo: 0, hi: 1, ticks: [] as number[] };
     let lo = Math.min(...vals), hi = Math.max(...vals);
@@ -53,7 +56,7 @@ export function TrendChart({ points, color, kind = "line", height = 200, unit, d
     const ticks: number[] = [];
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) ticks.push(v);
     return { lo, hi, ticks };
-  }, [points, baseline, target, zero, kind]);
+  }, [points, baseline?.low, baseline?.high, target, zero, kind]);
 
   const x = (i: number) => (n <= 1 ? W / 2 : kind === "bar" ? ((i + 0.5) / n) * W : (i / (n - 1)) * (W - 16) + 8);
   const y = (v: number) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
@@ -108,8 +111,8 @@ export function TrendChart({ points, color, kind = "line", height = 200, unit, d
             {ticks.map((v) => <line key={v} x1={0} x2={W} y1={y(v)} y2={y(v)} stroke="var(--hairline)" vectorEffect="non-scaling-stroke" />)}
             {baseline && (
               <>
-                <rect x={0} y={y(baseline.mean + baseline.sd)} width={W} height={Math.max(1, y(baseline.mean - baseline.sd) - y(baseline.mean + baseline.sd))} fill="var(--ink)" opacity={0.055} />
-                <line x1={0} x2={W} y1={y(baseline.mean)} y2={y(baseline.mean)} stroke="var(--ink-3)" strokeDasharray="4 5" vectorEffect="non-scaling-stroke" />
+                <rect x={0} y={y(baseline.high)} width={W} height={Math.max(1, y(baseline.low) - y(baseline.high))} fill="var(--ink)" opacity={0.055} />
+                <line x1={0} x2={W} y1={y(baseline.typical)} y2={y(baseline.typical)} stroke="var(--ink-3)" strokeDasharray="4 5" vectorEffect="non-scaling-stroke" />
               </>
             )}
             {target && <line x1={0} x2={W} y1={y(target.value)} y2={y(target.value)} stroke="var(--ink-2)" strokeDasharray="2 4" vectorEffect="non-scaling-stroke" />}

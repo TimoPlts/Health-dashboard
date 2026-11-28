@@ -171,6 +171,27 @@ for (const [hi, h] of listHabits(db).entries()) {
   setSetting(db, "goals", { ...getSettings(db).goals, weightKg: 76 });
 }
 
+// Fictional category labels for the strength sessions (by weekday, as an owner might) and a fictional training plan
+// starting six weeks ago, with one adjusted day next week. Some sessions deliberately miss or differ from the plan.
+{
+  const cats = ["push", "upper", "pull", "full_body", "legs", "upper", "full_body"]; // Mon..Sun
+  const strength = db.$client.prepare("select id from exercise_sessions where id like 'demo-ex-hevy-%'").all() as { id: string }[];
+  for (const { id } of strength) {
+    const day = id.replace("demo-ex-hevy-", "");
+    const cat = cats[(new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7]!;
+    for (const sid of [id, `demo-ex-fitbit-${day}`]) db.$client.prepare("insert or replace into workout_annotations (session_id, name, category, effort, updated_at) values (?, null, ?, ?, ?)").run(sid, cat, 5 + (day.charCodeAt(9) % 4), now);
+  }
+  const T = (name: string, category: string) => ({ kind: "train", name, category });
+  const R = { kind: "rest", name: null, category: null }, F = { kind: "free", name: null, category: null };
+  const nextMonday = (() => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + ((8 - d.getUTCDay()) % 7 || 7)); return d.toISOString().slice(0, 10); })();
+  const nextWed = new Date(Date.parse(`${nextMonday}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10);
+  setSetting(db, "trainingPlan", {
+    since: dayStr(-41), previous: [],
+    split: [T("Push", "push"), R, T("Pull", "pull"), F, T("Legs", "legs"), F, R],
+    overrides: { [nextWed]: { kind: "rest", name: "Travel", category: null } },
+  } as never);
+}
+
 // One labelled workout (fictional owner label), written for both sessions of the grouped workout.
 const lastStrength = db.$client.prepare("select id, start_ms from exercise_sessions where id like 'demo-ex-hevy-%' order by start_ms desc limit 1").get() as { id: string } | undefined;
 if (lastStrength) {

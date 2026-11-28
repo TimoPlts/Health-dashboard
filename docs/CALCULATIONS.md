@@ -291,6 +291,36 @@ Independent flags, each shown with its reason. They are never combined into a di
 - **Wording:** "associated with", never "caused".
 - **Limitations:** confounding (training, illness, weekdays) is not adjusted for. Exploratory only.
 
+### RANGE · `personal-range@1` (`lib/metrics/personal-range.ts`, `analytics/monitor.ts`) — health monitor
+- **Inputs:** the provider's daily values (resting HR, HRV, sleeping HR, breathing rate, SpO₂, skin temperature, …) exactly as Google reports them. Baseline recomputes none of them.
+- **Window:** the 28 days **before** the latest value (the value never shapes its own range). At least **14 days with data**, otherwise "calibrating n/14". Same rule as BASE-ROLL / REC-BASE.
+- **Range:** mean ± 1 SD (sample SD). Metrics flagged `logScale` (HRV, HRV in deep sleep) use ln(x) and are converted back: range = exp(μ ± σ), typical = geometric mean (Plews et al. 2013, Sports Med 43:773). The metric detail pages draw the same band.
+- **Deviation:** z = (x − μ) / σ on the same scale, plus the plain difference from the typical value. Position: within (|z| ≤ 1), above / below (1 < |z| ≤ 2), well above / well below (|z| > 2). σ = 0 → no position.
+- **Completeness:** days with a value out of the last 28 (missing days are never filled; a real 0 counts as data).
+- **Not a diagnosis:** about 32 % of days fall outside ±1 SD by chance for normally distributed values. No medical reference ranges, no risk scores, no red/green colouring. Skin temperature is already relative to Fitbit's own baseline; its range shows how much it usually varies. VO₂ max is updated rarely, so it gets no daily range.
+
+### CALENDAR · `calendar@1` (`lib/metrics/calendar.ts`, `analytics/calendar.ts`)
+- Monday-first month grid. Each day reuses existing values: recovery@2 and readiness@1 (only when calibrated), sleep-score@1 and minutes asleep (night attributed to the wake date), Edwards TRIMP, steps, active minutes.
+- **Missing vs zero:** a day without a value is a hollow dashed cell; a recorded 0 is a filled, labelled cell. Future days carry no values. Today's totals are "so far".
+- **Shading:** recovery and sleep score are shaded across the month's own lowest → highest value (the legend prints both); steps and load from 0 to the month maximum (or the step goal if higher). Shading is relative, never a judgement.
+- **Rest day:** a complete day with heart-rate data and no counted workout (excluded and < 60 s workouts do not count). Days without heart rate are unknown, not rest.
+- **Goals met:** the daily goals you set (steps, active minutes, sleep, bedtime, wake), evaluated as in GOALS; days without data are not counted.
+
+### TIMELINE · `timeline@1` (`lib/metrics/timeline.ts`, `analytics/timeline.ts`)
+- **Day:** local midnight to the next local midnight in the home time zone (`civilDayBounds`): 23 h or 25 h on DST days; hour ticks come from the zone's real offsets (a 25 h day shows 02:00 twice; times then carry the zone abbreviation).
+- **Resolution:** the database keeps every raw sample. The page receives one-minute summaries: mean / min / max / n of heart rate, covered seconds and seconds per %HRmax zone. Each sample counts until the next one, capped at 30 s (HR-STATS rule), split across minute boundaries.
+- **No interpolation:** the heart-rate line breaks wherever no sample exists for more than 5 minutes; a minute without samples is null.
+- **Intervals:** steps and Active Zone Minutes are spread over minutes in proportion to overlap (totals preserved). Intensity = Google's AZM zone (fat burn 1, cardio 2, peak 3).
+- **Inspecting an interval:** HR average weighted by sample count, min/max, worn minutes, minutes per zone, steps, AZM, sleep minutes per stage and overlapping workouts. Journal entries are per day and have no time.
+
+### PLAN · `training-plan@1` (`lib/metrics/training-plan.ts`, `analytics/planner.ts`)
+- **Plan:** a weekly split (Mon–Sun: train with optional name and category, rest, or unplanned) plus per-date overrides, stored in `settings` (no provider data, no migration). Changing the split applies from today; earlier splits are kept with the date they applied until, so past adherence never changes.
+- **Matching (`matchesPlan`):** no planned category → any workout. A labelled workout must have the planned category. An unlabelled workout matches by kind: a cardio-type session fulfils a planned Cardio day, any other session a planned strength day. Excluded and < 60 s workouts never count.
+- **Day status:** done, trained (different category), not recorded (complete planned day without a workout), rested, trained on a rest day, extra (unplanned day with a workout), upcoming. Today is never "not recorded".
+- **Adherence** = (done + different) ÷ planned training days that are complete or already done, per ISO week and over 12 weeks. **Consistent weeks** = complete weeks in a row (newest first) with no planned session missed; weeks without planned training are skipped.
+- **Similar workouts:** grouped by your category, unlabelled ones by Google exercise type; the last 6 per group with duration, average HR (HR-STATS), Edwards TRIMP and your effort.
+- **Never prescriptive:** no recommendations and no use of recovery or readiness scores.
+
 ### Aggregation rules (all metric pages)
 - Weekly, monthly and period values are the **mean of the days that have data**. For additive metrics (steps, energy, minutes) that is the mean daily total. Missing days are never counted as 0. The number of days with data is shown next to every average.
 - **Incomplete day:** for daily totals (`agg: sum`: steps, energy, minutes, load, sedentary time) the current day is shown as "so far" but left out of averages, min/max, comparisons and baselines. The change vs baseline is hidden for it.

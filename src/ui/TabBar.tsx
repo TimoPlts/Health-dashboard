@@ -10,7 +10,7 @@ const TABS: { href: string; label: string; icon: IconName; match: (p: string) =>
   { href: "/sleep", label: "Sleep", icon: "sleep", match: (p) => p.startsWith("/sleep") },
   { href: "/training", label: "Training", icon: "bolt", match: (p) => p.startsWith("/training") },
   { href: "/trends", label: "Trends", icon: "trends", match: (p) => p.startsWith("/trends") },
-  { href: "/health", label: "Health", icon: "grid", match: (p) => p.startsWith("/health") || p.startsWith("/metric") },
+  { href: "/health", label: "Health", icon: "grid", match: (p) => ["/health", "/metric", "/monitor", "/calendar", "/timeline"].some((x) => p.startsWith(x)) },
 ];
 
 /** Floating Liquid-Glass capsule; the active lens glides between tabs (instant with reduced motion). */

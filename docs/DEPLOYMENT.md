@@ -54,7 +54,7 @@ All of this is covered by `tests/unit/production.test.ts` and `tests/unit/securi
 
 - **Sync:** the server syncs Google Health every 30 minutes (Settings → Personal). The Settings page shows the last and next sync and the server state.
 - **Reconnect Google:** do it on the PC at `http://localhost:3000/settings`. The OAuth redirect is registered for localhost, so it does not work from the iPhone.
-- **Upgrading (e.g. to 0.6.0) — back up first.** On the production PC:
+- **Upgrading (e.g. to 0.7.0) — back up first.** On the production PC:
   ```powershell
   git fetch; git switch main; git pull --ff-only
   npm run data -- backup                     # consistent backup of the live database
@@ -64,7 +64,7 @@ All of this is covered by `tests/unit/production.test.ts` and `tests/unit/securi
   npm run service -- deploy                  # stop → build → start
   npm run service -- status                  # healthy, last sync OK
   ```
-  0.6.0 changes the session cookie format, so the PC browser and the iPhone each sign in **once** after the upgrade. If anything is wrong: `npm run data -- restore <that-backup>`.
+  0.6.0 changed the session cookie format, so coming from 0.5.x the PC browser and the iPhone each sign in **once**. 0.7.0 adds no migration and keeps sessions. If anything is wrong: `npm run data -- restore <that-backup>`.
 - **Development:** `npm run dev` now uses port **3001**, so it can run next to the production service. E2E uses 3100.
 
 ## Reliability

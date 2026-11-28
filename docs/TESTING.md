@@ -21,7 +21,7 @@ npm ci --ignore-scripts && npm rebuild esbuild
 ```
 esbuild is the only dependency with a real install script. Node 22 LTS is what CI uses.
 
-## Release checks (0.6.0)
+## Release checks (0.6.0, repeated for 0.7.0)
 `npm run lint` · `npm test` · `npm run db:seed-demo && npm run test:e2e` · `npm run build` · gitleaks over the full history · `npm audit` · a production smoke test (`next start` with an isolated home and throwaway secrets: headers/CSP, login, CSRF, logout revocation, tailnet gate, login brake across a restart) and a browser pass over every page of the production build checking for CSP violations. Results: [RELEASE_AUDIT](RELEASE_AUDIT.md).
 
 `tests/unit/runtime-home.test.ts` covers the storage-safety guard (OneDrive/repo rejection, home resolution, config parsing).
@@ -32,6 +32,7 @@ esbuild is the only dependency with a real install script. Node 22 LTS is what C
 - `tests/unit/core.test.ts`: AES-GCM (tamper/wrong key), scrypt, retry/backoff/Retry-After/no-retry-4xx/network, URL redaction, throttle, civil dates & DST bounds, sync window planning, PKCE + OAuth URL.
 - `tests/unit/security.test.ts`: test isolation, session tokens (tamper, legacy format, lifetime), logout and password-change revocation across a restart, persistent login brake, corrupt state fails closed, tailnet gate (forged Host, Funnel, allowlist), symlink/junction path safety, repo env secrets stop startup.
 - `tests/unit/production.test.ts`: HTTPS detection, tailnet gate, same-origin check, sliding sessions.
+- `tests/unit/insights.test.ts`: personal ranges (calibration, 28-day window, log scale, deviation positions, completeness), timeline (null buckets, no line across gaps, proportional interval allocation, zone bounds, 23 h / 25 h / half-hour hour ticks, per-minute zone seconds, interval summaries), training plan (split, overrides, day statuses, adherence, consistent weeks, split history, plan matching, untrusted JSON), calendar grid and heat (missing ≠ zero).
 - `tests/unit/time-boundaries.test.ts`: civil-day bounds on DST days (Brussels, New York, Lord Howe, midnight-DST Santiago); days tile without gaps over a year.
 - `tests/integration/sync.test.ts`: Google backfill + pagination + raw pages + **idempotent re-run**, sleep window replacement (deletions), partial failure vs. auth abort, 401 → refresh → retry; token exchange with PKCE, `invalid_grant` → re-auth; Hevy backfill, update + delete events, replay without duplicates.
 

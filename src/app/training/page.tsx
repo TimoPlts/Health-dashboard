@@ -48,6 +48,12 @@ export default async function TrainingPage({ searchParams }: { searchParams: Pro
         </Glass>
       </div>
 
+      <Link href="/training/plan" transitionTypes={["nav-forward"]} className="glass pressable rise rise-2 mt-3 flex items-center gap-3 p-4">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklab,var(--load)_18%,transparent)] text-load"><Icon name="calendar" size={18} strokeWidth={2.2} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold">Training plan</span><span className="block text-[12px] text-ink-3">Weekly split, planned vs completed, adherence and similar workouts</span></span>
+        <span className="text-ink-4"><Icon name="chevronRight" size={15} strokeWidth={2.4} /></span>
+      </Link>
+
       <Link href="/cardio" transitionTypes={["nav-forward"]} className="glass pressable rise rise-2 mt-3 flex items-center gap-3 p-4">
         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[color-mix(in_oklab,var(--heart)_18%,transparent)] text-heart"><Icon name="heart" size={18} strokeWidth={2.2} /></span>
         <span className="min-w-0 flex-1"><span className="block text-[15px] font-semibold">Cardio &amp; Zone 2</span><span className="block text-[12px] text-ink-3">Weekly zones, Active Zone Minutes, sessions and resting heart rate</span></span>

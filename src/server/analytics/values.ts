@@ -2,6 +2,7 @@ import type { DB } from "../db/client";
 import { METRIC_BY_ID, type MetricDef } from "./registry";
 import { dailyAttrSeries, dailyMetricSeries, dateRange, nightSampleSeries, derivedSeries, intervalSumSeries, localToday, nightSeries, sampleDailySeries, shiftDate, type DaySeries } from "./series";
 import { computeScores, nightValue, type DayScores } from "./scores";
+import { personalRange } from "@/lib/metrics/personal-range";
 
 /**
  * Daily values for any registered metric over [from, to]. Missing days are absent (never 0).
@@ -94,6 +95,8 @@ export function metricDetail(db: DB, id: string, range: RangeKey, end: string, f
     period: cur, previous: prev,
     change: cur.value !== null && prev.value !== null && prev.value !== 0 ? { abs: cur.value - prev.value, pct: ((cur.value - prev.value) / Math.abs(prev.value)) * 100 } : null,
     baseline,
+    /** Personal normal range (personal-range@1, log scale for HRV) over the same 28 days; drawn as the chart band. */
+    normalRange: def.baseline ? personalRange(baseVals, def.logScale ? "log" : "linear") : null,
     totalDays: all.size,
   };
 }

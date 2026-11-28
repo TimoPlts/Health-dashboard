@@ -12,6 +12,7 @@
 | 6 Production readiness | calculation audit ([FEATURE_AUDIT](FEATURE_AUDIT.md)), Tailscale HTTPS + tailnet gate, supervised autostart, PWA, backups/restore/export/retention/delete-all | ✅ 2026-11-26 |
 | 7 Personalisation (0.6.0) | Milestones A–C: R1–R6, R8, R9 | ✅ 2026-11-27 |
 | 8 Security audit & first release | Git/history/Actions audit, revocable sessions, persistent login brake, fail-closed tailnet gate, CSP, CI with secret scanning ([RELEASE_AUDIT](RELEASE_AUDIT.md)) | ✅ v0.6.0 on `main` |
+| 9 Advanced health insights (0.7.0) | health monitor with personal ranges, monthly health calendar, 24-hour timeline, training planner ([CHANGELOG](CHANGELOG.md)) | ✅ 2026-11-28 |
 
 ## Next: prioritised features
 Ranked by **usefulness** for daily use, **feasibility** with data Baseline already has, and **readiness** (how much history the feature needs). Each one is built one at a time, with the usual rules: documented method, tests, missing ≠ 0, no AI.

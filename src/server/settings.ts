@@ -3,6 +3,7 @@ import type { DB } from "./db/client";
 import * as t from "./db/schema";
 import { DEFAULT_SLEEP_NEED_MIN } from "@/lib/metrics/sleep";
 import type { TodayLayout } from "@/lib/today-layout";
+import { normalisePlan, type TrainingPlan } from "@/lib/metrics/training-plan";
 
 /**
  * Personal targets. Every goal is optional (null = not set); nothing is assumed for you. Times are minutes after
@@ -38,13 +39,18 @@ export interface AppSettings {
   todayLayout: Partial<TodayLayout> | null;
   /** The suggested habits were created once; removing them later does not bring them back. */
   habitsSeeded: boolean;
+  /** Weekly training split + per-day overrides (lib/metrics/training-plan.ts); null = no plan. Validated on read. */
+  trainingPlan: TrainingPlan | null;
 }
-const DEFAULTS: AppSettings = { sleepNeedMin: DEFAULT_SLEEP_NEED_MIN, hrMaxOverride: null, profileAge: null, autoSyncMinutes: 30, rawRetentionDays: 90, backupKeep: 14, goals: EMPTY_GOALS, todayLayout: null, habitsSeeded: false };
+const DEFAULTS: AppSettings = { sleepNeedMin: DEFAULT_SLEEP_NEED_MIN, hrMaxOverride: null, profileAge: null, autoSyncMinutes: 30, rawRetentionDays: 90, backupKeep: 14, goals: EMPTY_GOALS, todayLayout: null, habitsSeeded: false, trainingPlan: null };
 
 export function getSettings(db: DB): AppSettings {
   const rows = db.select().from(t.settings).all();
   const out = { ...DEFAULTS } as Record<string, unknown>;
-  for (const r of rows) if (r.key in DEFAULTS) out[r.key] = r.key === "goals" ? { ...EMPTY_GOALS, ...(r.value as object) } : r.value;
+  for (const r of rows) {
+    if (!(r.key in DEFAULTS)) continue;
+    out[r.key] = r.key === "goals" ? { ...EMPTY_GOALS, ...(r.value as object) } : r.key === "trainingPlan" ? normalisePlan(r.value) : r.value;
+  }
   return out as unknown as AppSettings;
 }
 

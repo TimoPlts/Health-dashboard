@@ -212,3 +212,74 @@ test("weight, energy, reports and associations", async ({ page }) => {
   await page.keyboard.press("Escape");
   await shot(page, "journal-assoc");
 });
+
+test("v0.7: health monitor, calendar, timeline and training planner", async ({ page }) => {
+  await login(page);
+
+  await page.goto("/health");
+  await page.getByRole("link", { name: /Monitor/ }).click();
+  await expect(page.getByRole("heading", { name: "Health monitor" })).toBeVisible();
+  const hrv = page.getByRole("region", { name: "Heart rate variability" });
+  await expect(hrv.getByText("Normal range")).toBeVisible();
+  await expect(hrv.getByText(/of 28 days/)).toBeVisible();
+  await expect(page.getByRole("img", { name: /Heart rate variability .*normal range/ })).toBeVisible();
+  await page.getByRole("button", { name: "How ranges are calculated" }).click();
+  await expect(page.getByRole("dialog", { name: "How ranges are calculated" })).toContainText("not a medical reference range");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  await shot(page, "monitor"); await axe(page); await noOverflow(page);
+
+  await page.goto("/calendar");
+  await expect(page.getByRole("grid", { name: "Recovery calendar" })).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Summary of / })).toBeVisible();
+  // A day before the data starts is shown as "no data", not as zero.
+  await page.goto(`/calendar?month=${new Date(Date.now() - 62 * 86_400_000).toISOString().slice(0, 7)}&show=steps`);
+  await expect(page.getByRole("button", { name: /no steps data/ }).first()).toBeVisible();
+  await page.goto("/calendar?show=sleep");
+  await expect(page.getByRole("grid", { name: "Sleep score calendar" })).toBeVisible();
+  const days = page.getByRole("grid").getByRole("button", { disabled: false });
+  await days.nth(2).click();
+  await expect(page.getByRole("region", { name: /^Summary of / }).getByText("Time asleep")).toBeVisible();
+  await page.waitForTimeout(300);
+  await shot(page, "calendar"); await axe(page); await noOverflow(page);
+  await page.getByRole("region", { name: /^Summary of / }).getByRole("link", { name: "Timeline" }).click();
+
+  await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Heart rate over the day" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Sleep stages" })).toBeVisible();
+  const tl = page.getByRole("group", { name: /^Day timeline/ });
+  const box = (await tl.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.4, box.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.55, box.y + 60, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByRole("region", { name: "Selected interval" }).getByRole("heading")).toHaveText(/\d\d:\d\d – \d\d:\d\d/);
+  await page.getByRole("button", { name: "Last night" }).click();
+  await expect(page.getByRole("region", { name: "Selected interval" })).toContainText(/Deep \d+m/);
+  await page.waitForTimeout(300);
+  await shot(page, "timeline"); await axe(page); await noOverflow(page);
+
+  await page.goto("/training");
+  await page.getByRole("link", { name: /Training plan/ }).click();
+  await expect(page.getByRole("heading", { name: "Planner" })).toBeVisible();
+  await expect(page.getByText("Adherence", { exact: true })).toBeVisible();
+  await expect(page.getByText("Adjusted").first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Push workouts" })).toBeVisible();
+  await page.waitForTimeout(300);
+  await shot(page, "planner"); await axe(page); await noOverflow(page);
+  // Adjust a day next week, then reset it.
+  const sunday = page.getByRole("button", { name: /^Sun .*Adjust this day$/ }).last();
+  await sunday.click();
+  const dlg = page.getByRole("dialog");
+  await dlg.getByRole("radio", { name: "Train" }).click();
+  await dlg.getByLabel("Name").fill("Long walk");
+  await dlg.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("button", { name: /^Sun .*Long walk.*Adjust this day$/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Sun .*Long walk.*Adjust this day$/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Back to weekly plan" }).click();
+  await expect(page.getByRole("button", { name: /Long walk/ })).toHaveCount(0);
+});
+
+test("training plan API refuses unauthenticated requests", async ({ request }) => {
+  expect((await request.post("/api/training/plan", { data: { clear: true } })).status()).toBe(401);
+});

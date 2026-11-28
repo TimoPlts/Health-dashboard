@@ -59,7 +59,11 @@ export default async function Today({ searchParams }: { searchParams: Promise<Re
   return (
     <Page accent="recovery">
       <LargeTitle eyebrow={fmtDayLong(v.date)} title={v.date === v.today ? "Today" : "Summary"}
-        trailing={<Link href="/settings" transitionTypes={["nav-forward"]} aria-label="Settings" className="glass glass-pill pressable grid size-10 place-items-center text-ink-2"><Icon name="settings" size={20} /></Link>} />
+        trailing={<>
+          <Link href={`/timeline${v.date !== v.today ? `?date=${v.date}` : ""}`} transitionTypes={["nav-forward"]} aria-label="Timeline of this day" className="glass glass-pill pressable grid size-10 place-items-center text-ink-2"><Icon name="clock" size={20} /></Link>
+          <Link href={`/calendar${v.date !== v.today ? `?month=${v.date.slice(0, 7)}` : ""}`} transitionTypes={["nav-forward"]} aria-label="Calendar" className="glass glass-pill pressable grid size-10 place-items-center text-ink-2"><Icon name="calendar" size={20} /></Link>
+          <Link href="/settings" transitionTypes={["nav-forward"]} aria-label="Settings" className="glass glass-pill pressable grid size-10 place-items-center text-ink-2"><Icon name="settings" size={20} /></Link>
+        </>} />
       <div className="mb-4 flex items-center justify-between gap-2 px-1">
         <DateNav date={v.date} today={v.today} earliest={v.earliest} />
         <SyncStatus />

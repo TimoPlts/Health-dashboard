@@ -33,6 +33,8 @@ export interface MetricDef {
   better?: "higher" | "lower";
   /** Personal 28-day baseline is meaningful for this metric. */
   baseline?: boolean;
+  /** Right-skewed measure: the personal range is computed on ln(x) (personal-range@1). */
+  logScale?: boolean;
   /** Value is a time of day: minutes after `clockBase` minutes past midnight (bedtime uses noon so 23:30 and 00:30 are adjacent). */
   clock?: boolean;
   clockBase?: number;
@@ -66,10 +68,10 @@ export const METRICS: MetricDef[] = [
   // Heart
   { id: "resting_hr", label: "Resting heart rate", short: "Resting HR", group: "heart", tone: "heart", unit: "bpm", decimals: 0, series: { kind: "daily", metric: "resting_hr" }, agg: "mean", better: "lower", baseline: true,
     source: `${G} · daily-resting-heart-rate (Fitbit Air)`, explanation: "Your heart rate at complete rest, calculated by Fitbit mostly from sleep. Lower usually means better cardiovascular fitness and recovery." },
-  { id: "hrv", label: "Heart rate variability", short: "HRV", group: "heart", tone: "heart", unit: "ms", decimals: 0, series: { kind: "daily", metric: "hrv_rmssd_daily" }, agg: "mean", better: "higher", baseline: true,
+  { id: "hrv", label: "Heart rate variability", short: "HRV", group: "heart", tone: "heart", unit: "ms", decimals: 0, series: { kind: "daily", metric: "hrv_rmssd_daily" }, agg: "mean", better: "higher", baseline: true, logScale: true,
     source: `${G} · daily-heart-rate-variability (RMSSD)`, explanation: "Beat-to-beat variation of your heart during sleep (RMSSD). Higher than your usual generally indicates good recovery; compare with yourself, not others.",
     method: "Baseline on ln(RMSSD), 28 days (Plews 2013)." },
-  { id: "hrv_deep", label: "HRV in deep sleep", group: "heart", tone: "heart", unit: "ms", decimals: 0, series: { kind: "daily", metric: "hrv_rmssd_deep_sleep" }, agg: "mean", better: "higher", baseline: true,
+  { id: "hrv_deep", label: "HRV in deep sleep", group: "heart", tone: "heart", unit: "ms", decimals: 0, series: { kind: "daily", metric: "hrv_rmssd_deep_sleep" }, agg: "mean", better: "higher", baseline: true, logScale: true,
     source: `${G} · daily-heart-rate-variability`, explanation: "RMSSD measured only during deep sleep, when breathing and movement disturb it least." },
   { id: "sleeping_hr", label: "Sleeping heart rate", group: "heart", tone: "heart", unit: "bpm", decimals: 0, series: { kind: "daily", metric: "hr_non_rem" }, agg: "mean", better: "lower", baseline: true,
     source: `${G} · daily-heart-rate-variability (non-REM HR)`, explanation: "Average heart rate during non-REM sleep." },

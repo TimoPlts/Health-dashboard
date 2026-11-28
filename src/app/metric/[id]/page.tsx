@@ -59,8 +59,8 @@ export default async function MetricPage({ params, searchParams }: { params: Pro
 
       <Glass className="mt-3 p-4">
         <TrendChart points={d.points} color={toneVar(def.tone)} kind={kind} height={210} unit={unit} decimals={def.decimals}
-          baseline={base ? { mean: base.mean, sd: base.sd } : null} format={fmtKind} clockBase={def.clockBase ?? 0} zero={def.agg === "sum"} label={`${def.label} per day`} />
-        {base && <p className="mt-2 flex items-center gap-2 text-[12px] text-ink-3"><span className="inline-block h-2.5 w-5 rounded-sm bg-[var(--fill-2)]" />Your normal range (28-day mean ± 1 SD)</p>}
+          band={d.normalRange?.status === "ok" ? { low: d.normalRange.low, high: d.normalRange.high, typical: d.normalRange.typical } : null} format={fmtKind} clockBase={def.clockBase ?? 0} zero={def.agg === "sum"} label={`${def.label} per day`} />
+        {base && <p className="mt-2 flex items-center gap-2 text-[12px] text-ink-3"><span className="inline-block h-2.5 w-5 rounded-sm bg-[var(--fill-2)]" />Your normal range (28-day mean ± 1 SD{def.logScale ? ", on a log scale" : ""})</p>}
       </Glass>
 
       <div className="mt-3 grid grid-cols-3 gap-3">
@@ -88,7 +88,7 @@ export default async function MetricPage({ params, searchParams }: { params: Pro
         {base && (
           <div className="flex items-center justify-between px-4 py-3">
             <span className="text-[15px] font-semibold">Personal baseline</span>
-            <span className="num text-[15px] font-semibold">{f(base.mean)} <span className="text-[12px] text-ink-3">± {f(base.sd)}</span></span>
+            <span className="num text-[15px] font-semibold">{d.normalRange?.status === "ok" && def.logScale ? <>{f(d.normalRange.typical)} <span className="text-[12px] text-ink-3">{f(d.normalRange.low)}–{f(d.normalRange.high)}</span></> : <>{f(base.mean)} <span className="text-[12px] text-ink-3">± {f(base.sd)}</span></>}</span>
           </div>
         )}
       </Glass>

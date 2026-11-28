@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — 2026-11-28 (Advanced health insights)
+New views that extend Health and Training; existing pages, data and security controls are unchanged. All new calculations are pure functions in `src/lib/metrics` (portable to the iOS app) and documented in [CALCULATIONS](CALCULATIONS.md).
+- **Health monitor (`/monitor`, from Health):** resting HR, HRV, sleeping HR, breathing rate, blood oxygen, skin temperature and six more measurements. For each one: latest value, personal normal range (28 days before, mean ± 1 SD; HRV on a log scale), deviation in units and SD, a 90-day trend with the range band, data completeness, calibration status, source and methodology. Descriptive only: no diagnoses, risk scores or red/green judgements (`personal-range@1`).
+- **Health calendar (`/calendar`, from Health and Today):** month grid shaded by recovery, sleep score, load or steps, with workout and journal markers. Missing days are hollow, real zeros are filled. Tap a day for its summary (recovery, readiness, sleep, load, steps, workouts with categories, rest day, plan status, goals met, journal) and links to the full day and its timeline (`calendar@1`).
+- **Daily timeline (`/timeline`, from Today, Health and the calendar):** heart rate, %HRmax zones, sleep stages, workouts, Google intensity and steps on one synchronised 24-hour axis. Correct on 23 h and 25 h DST days. Drag, use the arrow keys or jump to last night or a workout to inspect any interval. Raw samples stay in the database; the page gets one-minute summaries and never draws across gaps (`timeline@1`).
+- **Training planner (`/training/plan`, from Training):** weekly split with your own day names and categories, rest days, per-day adjustments, planned vs completed for this week and next, 12 weeks of adherence, consistent weeks, and comparisons between similar workouts. Uses Google sessions and your workout labels; no Hevy Pro and no recommendations (`training-plan@1`). Stored in settings; no database migration.
+- **Metric pages:** the HRV and deep-sleep HRV range bands now use the same log-scale range as the monitor.
+- **Tests:** 24 new unit tests (ranges, DST ticks, bucketing without interpolation, interval allocation, plan matching and history, calendar grid); E2E + axe for the four new pages on iPhone (dark/light) and desktop, including timeline selection and a plan adjustment.
+
 ## 0.6.0 — 2026-11-27 (Advanced analytics and personalisation · first release on `main`)
 ### Security audit and release hardening
 Full audit before the first release: [RELEASE_AUDIT](RELEASE_AUDIT.md). No credential or health data was found in the Git history, tags, Actions logs or artifacts.

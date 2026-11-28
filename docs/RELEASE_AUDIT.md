@@ -77,3 +77,19 @@ See [SECURITY → Residual risks](SECURITY.md). In short: health data at rest is
 **Real data:** no test, build or smoke run touched the owner's runtime folder (it does not exist on the development PC; every run used a temp home). No real data, log, database or configuration was uploaded to GitHub, CI, the PR or the release.
 
 **Production PC:** not reachable from the development PC. The deployment runbook with a verified backup first is in [DEPLOYMENT → Upgrading](DEPLOYMENT.md); after it, the PC browser and the iPhone sign in once.
+
+## 6. v0.7.0 release checks (2026-11-28)
+v0.7.0 adds four views (health monitor, calendar, daily timeline, training planner) and one mutating route, `POST /api/training/plan`. No dependency, database schema or security control changed. The training plan is stored in the existing `settings` table.
+
+| Check | Result |
+|---|---|
+| TypeScript, unit + integration | clean · **268 / 268** (24 new in `tests/unit/insights.test.ts`) |
+| E2E + axe (iPhone dark, iPhone light, desktop; fictional demo DB) | **27 / 27**, including the four new pages, timeline interval selection and a plan adjustment; no horizontal overflow |
+| Production build | passed |
+| Production smoke test (isolated home, throwaway secrets) | **46 / 46**: the v0.6.0 checks plus every new page requires login and renders on an empty database (including both 2026 DST days in the timeline). The plan API refuses cross-origin (403), unauthenticated (401) and invalid bodies (400), and saves, overrides and removes a plan. |
+| Browser pass on the production build | 16 pages (the new ones included): no CSP violations or console errors |
+| Secret scan | gitleaks: full history (all refs) 0; `src`, `scripts`, `tests`, `docs` 0 |
+| Dependency audit | production 0; dev unchanged (the accepted esbuild advisory, §4) |
+| New route review | session + same-origin guard (`guardMutation`); Zod schema (7-day split, names ≤ 40 characters, fixed category enum, ISO date); stored value re-normalised by `normalisePlan`; no provider data touched |
+
+**Not verified:** v0.7.0 has not run on real data or on the production PC, because that PC is not reachable from the development PC. Deploy with the backup-first runbook ([DEPLOYMENT → Upgrading](DEPLOYMENT.md)).
